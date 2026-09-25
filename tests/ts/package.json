@@ -1,0 +1,13 @@
+{
+  "name": "anycanvas-tests",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "anycanvas-recorder": "workspace:*",
+    "anycanvas-spec": "workspace:*",
+    "anycanvas-web": "workspace:*"
+  },
+  "devDependencies": {
+    "@napi-rs/canvas": "^0.1.65"
+  }
+}

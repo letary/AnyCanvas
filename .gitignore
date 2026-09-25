@@ -1,0 +1,12 @@
+node_modules/
+build/
+build-*/
+dist/
+*.log
+.DS_Store
+tests/out/
+local.properties
+.gradle/
+.cxx/
+.idea/
+*.iml

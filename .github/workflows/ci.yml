@@ -1,0 +1,24 @@
+name: ci
+on: [push, pull_request]
+jobs:
+  core-and-ts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: sudo apt-get install -y ninja-build
+      - run: bun install --frozen-lockfile
+      - run: bun run check:spec
+      - run: bun run typecheck
+      - run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+      - run: cmake --build build
+      - run: ctest --test-dir build --output-on-failure
+      - run: bun test tests/ts
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ilammy/msvc-dev-cmd@v1
+      - run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+      - run: cmake --build build
+      - run: ctest --test-dir build --output-on-failure

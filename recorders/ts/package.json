@@ -1,0 +1,13 @@
+{
+  "name": "anycanvas-recorder",
+  "version": "0.1.0",
+  "description": "AnyCanvas recorder: the Canvas2D-shaped API that writes an opcode stream",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "anycanvas-spec": "workspace:*"
+  }
+}

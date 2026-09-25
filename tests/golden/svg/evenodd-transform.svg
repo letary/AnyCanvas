@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 100">
+  <g transform="translate(50 50) rotate(15)" opacity="0.75">
+    <path d="M0,-40 L23.5,32.4 L-38,-12.4 L38,-12.4 L-23.5,32.4 Z" fill="#3366cc" fill-rule="evenodd" stroke="#001133" stroke-width="2" stroke-linejoin="round"/>
+  </g>
+  <g transform="matrix(1 0 0.5 1 100 10)">
+    <rect width="40" height="30" fill="none" stroke="green" stroke-width="4" stroke-linecap="round" stroke-dasharray="8 4 2" stroke-dashoffset="3"/>
+    <ellipse cx="70" cy="60" rx="20" ry="10" fill="hsl(300, 50%, 50%)"/>
+  </g>
+  <line x1="0" y1="95" x2="200" y2="95" stroke="black" stroke-width="1" visibility="hidden"/>
+  <polyline points="150,80 170,60 190,80" fill="none" stroke="#f0a" stroke-width="3" stroke-linecap="square" stroke-miterlimit="2"/>
+</svg>

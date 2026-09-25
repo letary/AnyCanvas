@@ -1,0 +1,13 @@
+{
+  "name": "anycanvas-web",
+  "version": "0.1.0",
+  "description": "AnyCanvas web painter: the draw-list reader and its replay on a Canvas2D context (browser, OffscreenCanvas, node-canvas)",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "anycanvas-spec": "workspace:*"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "name": "anycanvas-spec",
+  "version": "0.1.0",
+  "description": "AnyCanvas spec: the opcode and draw-list ids and enums, generated from spec/*.h",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./gen/spec.ts"
+  }
+}

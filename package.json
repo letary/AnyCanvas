@@ -1,0 +1,21 @@
+{
+  "name": "anycanvas-monorepo",
+  "private": true,
+  "workspaces": [
+    "spec",
+    "recorders/ts",
+    "painters/web",
+    "tests/ts"
+  ],
+  "scripts": {
+    "gen": "bun spec/generate.ts",
+    "check:spec": "bun spec/generate.ts --check",
+    "record": "bun tests/ts/record.ts",
+    "test": "bun test tests/ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.2.0",
+    "typescript": "^5.6.0"
+  }
+}
