@@ -1,7 +1,8 @@
 // The Android painter: replays a draw list on an android.graphics.Canvas. One `when` branch per
 // command, exhaustive over the sealed DrawCommand, no state beyond the canvas' own save stack and
-// the transform the list set last (Canvas.setMatrix is not absolute on every canvas kind, so the
-// painter applies transform DELTAS with concat).
+// the transform the list set last (Canvas.setMatrix is not absolute on every canvas kind — a view's
+// hardware canvas carries the view's offset — so the painter applies transform DELTAS with concat:
+// the list's matrices are absolute, `current⁻¹ · target` moves the canvas from one to the next).
 //
 // Platform limits: RadialGradient is concentric (the focal point is ignored); everything else in
 // the draw list maps one to one (Shader.setLocalMatrix carries the gradient matrix, DashPathEffect
@@ -50,10 +51,14 @@ class Painter(private val hooks: PainterHooks = object : PainterHooks {}) {
     private val clearPaint = Paint().apply { xfermode = PorterDuffXfermode(PorterDuff.Mode.CLEAR) }
     private val imagePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFilterBitmap = true }
     private val path = Path()
-    private val current = Matrix()
+    // `applied`: the last INVERTIBLE matrix of the list on the canvas (on top of the base); `visible`:
+    // the list's current matrix is invertible — under a singular one nothing it draws is visible.
+    private class State(val applied: Matrix, val visible: Boolean)
+    private val applied = Matrix()
+    private var visible = true
     private val target = Matrix()
     private val delta = Matrix()
-    private val stack = ArrayDeque<Matrix>()
+    private val stack = ArrayDeque<State>()
     private val srcRect = Rect()
     private val dstRect = RectF()
 
@@ -61,14 +66,24 @@ class Painter(private val hooks: PainterHooks = object : PainterHooks {}) {
     fun paint(canvas: Canvas, list: DrawList) = paint(canvas, list.commands())
 
     fun paint(canvas: Canvas, commands: List<DrawCommand>) {
-        current.reset()
+        applied.reset()
+        visible = true
         stack.clear()
         val base = canvas.save()
         for (c in commands) {
+            if (!visible && c !is DrawCommand.SetTransform && c !is DrawCommand.Save && c !is DrawCommand.Restore) {
+                // A singular transform: a clip under it is empty (as in Canvas2D), a draw shows nothing.
+                if (c is DrawCommand.Clip) canvas.clipRect(0f, 0f, 0f, 0f)
+                continue
+            }
             when (c) {
                 is DrawCommand.SetTransform -> setTransform(canvas, c.matrix)
-                DrawCommand.Save -> { canvas.save(); stack.addLast(Matrix(current)) }
-                DrawCommand.Restore -> if (stack.isNotEmpty()) { canvas.restore(); current.set(stack.removeLast()) }
+                DrawCommand.Save -> { canvas.save(); stack.addLast(State(Matrix(applied), visible)) }
+                DrawCommand.Restore -> if (stack.isNotEmpty()) {
+                    canvas.restore()
+                    val s = stack.removeLast()
+                    applied.set(s.applied); visible = s.visible
+                }
                 is DrawCommand.Clip -> { buildPath(c.path, c.rule); canvas.clipPath(path) }
                 is DrawCommand.FillPath -> { buildPath(c.path, c.rule); applyPaint(fillPaint, c.paint); canvas.drawPath(path, fillPaint) }
                 is DrawCommand.StrokePath -> { buildPath(c.path, FillRule.NONZERO); applyStroke(strokePaint, c.stroke); applyPaint(strokePaint, c.paint); canvas.drawPath(path, strokePaint) }
@@ -91,13 +106,12 @@ class Painter(private val hooks: PainterHooks = object : PainterHooks {}) {
 
     private fun setTransform(canvas: Canvas, m: FloatArray) {
         target.setValues(floatArrayOf(m[0], m[2], m[4], m[1], m[3], m[5], 0f, 0f, 1f))
-        if (current.invert(delta)) {
-            delta.postConcat(target)
-            canvas.concat(delta)
-        } else {
-            canvas.setMatrix(target)
-        }
-        current.set(target)
+        visible = target.invert(delta)
+        if (!visible) return   // the canvas keeps the last invertible matrix; the draws are skipped
+        applied.invert(delta)
+        delta.preConcat(target)   // applied⁻¹ · target: concat leaves base · target on the canvas
+        canvas.concat(delta)
+        applied.set(target)
     }
 
     private fun buildPath(p: PathData, rule: FillRule) {
