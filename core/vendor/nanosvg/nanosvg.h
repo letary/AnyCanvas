@@ -163,6 +163,19 @@ typedef struct NSVGshape
 	char strokeGradient[64];	// Optional 'id' of stroke gradient
 	float xform[6];				// Root transformation for fill/stroke gradient
 	NSVGpath* paths;			// Linked list of paths in the image.
+	// ANYCANVAS: a text run (<text> / <tspan>) — paths is NULL then. (textX, textY) is the origin in the
+	// run's own space; textXform maps that space (and so the font size) to image space. Stroke width and
+	// dashes of a text run are NOT pre-scaled: the painter strokes under textXform.
+	char* text;					// UTF-8, NULL for a path shape
+	float textX, textY;
+	float textXform[6];
+	char fontFamily[64];		// the first family of font-family, unquoted; "" = the platform default
+	float fontSize;				// px in the run's space
+	int fontWeight;				// 100..900
+	char fontItalic;
+	char textAnchor;			// 0 start · 1 middle · 2 end
+	char textBaseline;			// 0 alphabetic · 1 top · 2 middle · 3 bottom · 4 hanging · 5 ideographic
+	float letterSpacing;		// px in the run's space
 	struct NSVGshape* next;		// Pointer to next shape, or NULL if last element.
 } NSVGshape;
 
@@ -249,8 +262,7 @@ static void nsvg__parseContent(char* s,
 							   void (*contentCb)(void* ud, const char* s),
 							   void* ud)
 {
-	// Trim start white spaces
-	while (*s && nsvg__isspace(*s)) s++;
+	/* ANYCANVAS: no trimming here — a text run needs its leading space; nsvg__content trims for styles. */
 	if (!*s) return;
 
 	if (contentCb)
@@ -439,6 +451,12 @@ typedef struct NSVGattrib
 	float miterLimit;
 	char fillRule;
 	float fontSize;
+	char fontFamily[64];		/* ANYCANVAS text */
+	int fontWeight;
+	char fontItalic;
+	char textAnchor;
+	char textBaseline;
+	float letterSpacing;
 	unsigned int stopColor;
 	float stopOpacity;
 	float stopOffset;
@@ -473,6 +491,12 @@ typedef struct NSVGparser
 	char pathFlag;
 	char defsFlag;
 	char styleFlag;
+	/* ANYCANVAS text: the run being collected */
+	char textFlag;
+	char* textBuf;
+	int textLen, textCap;
+	float textX, textY;						/* the current run's origin */
+	char tspanOwnsRun[NSVG_MAX_ATTR];		/* per attr level: does this element flush a run on its end */
 } NSVGparser;
 
 static void nsvg__xformIdentity(float* t)
@@ -663,6 +687,8 @@ static NSVGparser* nsvg__createParser(void)
 	p->attr[0].fillRule = NSVG_FILLRULE_NONZERO;
 	p->attr[0].hasFill = 1;
 	p->attr[0].visible = 1;
+	p->attr[0].fontSize = 16.0f;		/* ANYCANVAS: the CSS medium */
+	p->attr[0].fontWeight = 400;
     p->attr[0].paintOrder = nsvg__encodePaintOrder(NSVG_PAINT_FILL, NSVG_PAINT_STROKE, NSVG_PAINT_MARKERS);
 
 	return p;
@@ -714,6 +740,7 @@ static void nsvg__deleteGradientData(NSVGgradientData* grad)
 
 static void nsvg__deleteParser(NSVGparser* p)
 {
+	free(p->textBuf);		/* ANYCANVAS */
 	if (p != NULL) {
 		nsvg__deleteStyles(p->styles);
 		nsvg__deletePaths(p->plist);
@@ -949,6 +976,11 @@ static float nsvg__getAverageScale(float* t)
 
 static void nsvg__getLocalBounds(float* bounds, NSVGshape *shape, float* xform)
 {
+	if (shape->paths == NULL) {		/* ANYCANVAS: a text run has no geometry; its anchor is the box */
+		bounds[0] = bounds[2] = shape->textX;
+		bounds[1] = bounds[3] = shape->textY;
+		return;
+	}
 	NSVGpath* path;
 	float curve[4*2], curveBounds[4];
 	int i, first = 1;
@@ -1858,6 +1890,51 @@ static void nsvg__applyClassStyles(NSVGparser* p, const char* value)
 	}
 }
 
+/* ANYCANVAS text attributes ------------------------------------------------------------------ */
+static void nsvg__parseFontFamily(char* out, const char* value)
+{
+	const char* s = value;
+	const char* e;
+	size_t n;
+	while (*s && nsvg__isspace(*s)) s++;
+	if (*s == '\'' || *s == '"') {
+		char q = *s++;
+		e = s;
+		while (*e && *e != q) e++;
+	} else {
+		e = s;
+		while (*e && *e != ',') e++;
+	}
+	while (e > s && nsvg__isspace(e[-1])) e--;
+	n = (size_t)(e - s);
+	if (n > 63) n = 63;
+	memcpy(out, s, n);
+	out[n] = '\0';
+}
+
+static int nsvg__parseFontWeight(const char* value, int current)
+{
+	int w;
+	if (strcmp(value, "normal") == 0) return 400;
+	if (strcmp(value, "bold") == 0) return 700;
+	if (strcmp(value, "bolder") == 0) return current + 300 > 900 ? 900 : current + 300;
+	if (strcmp(value, "lighter") == 0) return current - 300 < 100 ? 100 : current - 300;
+	w = atoi(value);
+	if (w < 100) w = 100;
+	if (w > 900) w = 900;
+	return w;
+}
+
+static char nsvg__parseBaseline(const char* value)
+{
+	if (strcmp(value, "hanging") == 0) return 4;
+	if (strcmp(value, "middle") == 0 || strcmp(value, "central") == 0 || strcmp(value, "mathematical") == 0) return 2;
+	if (strcmp(value, "text-before-edge") == 0 || strcmp(value, "text-top") == 0 || strcmp(value, "top") == 0) return 1;
+	if (strcmp(value, "text-after-edge") == 0 || strcmp(value, "text-bottom") == 0 || strcmp(value, "bottom") == 0) return 3;
+	if (strcmp(value, "ideographic") == 0) return 5;
+	return 0;
+}
+
 static int nsvg__parseAttr(NSVGparser* p, const char* name, const char* value)
 {
 	float xform[6];
@@ -1870,6 +1947,11 @@ static int nsvg__parseAttr(NSVGparser* p, const char* name, const char* value)
 		if (strcmp(value, "none") == 0)
 			attr->visible = 0;
 		// Don't reset ->visible on display:inline, one display:none hides the whole subtree
+	} else if (strcmp(name, "visibility") == 0) {		/* ANYCANVAS: hidden / collapse hide, visible shows again */
+		if (strcmp(value, "hidden") == 0 || strcmp(value, "collapse") == 0)
+			attr->visible = 0;
+		else if (strcmp(value, "visible") == 0)
+			attr->visible = 1;
 
 	} else if (strcmp(name, "fill") == 0) {
 		if (strcmp(value, "none") == 0) {
@@ -1911,6 +1993,19 @@ static int nsvg__parseAttr(NSVGparser* p, const char* name, const char* value)
 		attr->miterLimit = nsvg__parseMiterLimit(value);
 	} else if (strcmp(name, "fill-rule") == 0) {
 		attr->fillRule = nsvg__parseFillRule(value);
+	} else if (strcmp(name, "font-family") == 0) {		/* ANYCANVAS text */
+		nsvg__parseFontFamily(attr->fontFamily, value);
+	} else if (strcmp(name, "font-weight") == 0) {
+		attr->fontWeight = nsvg__parseFontWeight(value, attr->fontWeight);
+	} else if (strcmp(name, "font-style") == 0) {
+		if (strncmp(value, "italic", 6) == 0 || strncmp(value, "oblique", 7) == 0) attr->fontItalic = 1;
+		else if (strcmp(value, "normal") == 0) attr->fontItalic = 0;
+	} else if (strcmp(name, "text-anchor") == 0) {
+		attr->textAnchor = strcmp(value, "middle") == 0 ? 1 : strcmp(value, "end") == 0 ? 2 : 0;
+	} else if (strcmp(name, "dominant-baseline") == 0 || strcmp(name, "alignment-baseline") == 0) {
+		attr->textBaseline = nsvg__parseBaseline(value);
+	} else if (strcmp(name, "letter-spacing") == 0) {
+		attr->letterSpacing = strcmp(value, "normal") == 0 ? 0.0f : nsvg__parseCoordinate(p, value, 0.0f, nsvg__actualLength(p));
 	} else if (strcmp(name, "font-size") == 0) {
 		attr->fontSize = nsvg__parseCoordinate(p, value, 0.0f, nsvg__actualLength(p));
 	} else if (strcmp(name, "transform") == 0) {
@@ -2843,6 +2938,13 @@ static void nsvg__parseGradientStop(NSVGparser* p, const char** attr)
 	stop->offset = curAttr->stopOffset;
 }
 
+/* ANYCANVAS text elements (defined below nsvg__strndup) */
+static void nsvg__startText(NSVGparser* p, const char** attr);
+static void nsvg__startTspan(NSVGparser* p, const char** attr);
+static void nsvg__endText(NSVGparser* p);
+static void nsvg__endTspan(NSVGparser* p);
+static void nsvg__textAppend(NSVGparser* p, const char* s);
+
 static void nsvg__startElement(void* ud, const char* el, const char** attr)
 {
 	NSVGparser* p = (NSVGparser*)ud;
@@ -2902,6 +3004,10 @@ static void nsvg__startElement(void* ud, const char* el, const char** attr)
 		nsvg__parseGradientStop(p, attr);
 	} else if (strcmp(el, "defs") == 0) {
 		p->defsFlag = 1;
+	} else if (strcmp(el, "text") == 0) {		/* ANYCANVAS */
+		nsvg__startText(p, attr);
+	} else if (strcmp(el, "tspan") == 0) {
+		nsvg__startTspan(p, attr);
 	} else if (strcmp(el, "svg") == 0) {
 		nsvg__parseSVG(p, attr);
 	} else if (strcmp(el, "style") == 0) {
@@ -2921,6 +3027,10 @@ static void nsvg__endElement(void* ud, const char* el)
 		p->defsFlag = 0;
 	} else if (strcmp(el, "style") == 0) {
 		p->styleFlag = 0;
+	} else if (strcmp(el, "text") == 0) {		/* ANYCANVAS */
+		nsvg__endText(p);
+	} else if (strcmp(el, "tspan") == 0) {
+		nsvg__endTspan(p);
 	}
 }
 
@@ -2935,10 +3045,207 @@ static char *nsvg__strndup(const char *s, size_t n)
 	return result;
 }
 
+/* ANYCANVAS text ------------------------------------------------------------------------------ */
+
+static void nsvg__textPutc(NSVGparser* p, char c)
+{
+	if (p->textLen + 1 >= p->textCap) {
+		int cap = p->textCap ? p->textCap * 2 : 64;
+		char* buf = (char*)realloc(p->textBuf, (size_t)cap);
+		if (buf == NULL) return;
+		p->textBuf = buf;
+		p->textCap = cap;
+	}
+	p->textBuf[p->textLen++] = c;
+}
+
+static void nsvg__textPutUtf8(NSVGparser* p, unsigned int cp)
+{
+	if (cp < 0x80) nsvg__textPutc(p, (char)cp);
+	else if (cp < 0x800) { nsvg__textPutc(p, (char)(0xC0 | (cp >> 6))); nsvg__textPutc(p, (char)(0x80 | (cp & 0x3F))); }
+	else if (cp < 0x10000) { nsvg__textPutc(p, (char)(0xE0 | (cp >> 12))); nsvg__textPutc(p, (char)(0x80 | ((cp >> 6) & 0x3F))); nsvg__textPutc(p, (char)(0x80 | (cp & 0x3F))); }
+	else { nsvg__textPutc(p, (char)(0xF0 | (cp >> 18))); nsvg__textPutc(p, (char)(0x80 | ((cp >> 12) & 0x3F))); nsvg__textPutc(p, (char)(0x80 | ((cp >> 6) & 0x3F))); nsvg__textPutc(p, (char)(0x80 | (cp & 0x3F))); }
+}
+
+/* Appends character data: entities decoded, whitespace collapsed to single spaces (xml:space default). */
+static void nsvg__textAppend(NSVGparser* p, const char* s)
+{
+	while (*s) {
+		if (*s == '&') {
+			const char* e = s + 1;
+			int n = 0;
+			while (*e && *e != ';' && n < 10) { e++; n++; }
+			if (*e == ';') {
+				if (strncmp(s, "&amp;", 5) == 0) nsvg__textPutc(p, '&');
+				else if (strncmp(s, "&lt;", 4) == 0) nsvg__textPutc(p, '<');
+				else if (strncmp(s, "&gt;", 4) == 0) nsvg__textPutc(p, '>');
+				else if (strncmp(s, "&quot;", 6) == 0) nsvg__textPutc(p, '"');
+				else if (strncmp(s, "&apos;", 6) == 0) nsvg__textPutc(p, '\'');
+				else if (s[1] == '#') nsvg__textPutUtf8(p, (unsigned int)(s[2] == 'x' || s[2] == 'X' ? strtoul(s + 3, NULL, 16) : strtoul(s + 2, NULL, 10)));
+				else { while (s < e) nsvg__textPutc(p, *s++); nsvg__textPutc(p, ';'); }   /* unknown: kept verbatim */
+				s = e + 1;
+				continue;
+			}
+		}
+		if (nsvg__isspace(*s)) {
+			if (p->textLen > 0 && p->textBuf[p->textLen - 1] != ' ') nsvg__textPutc(p, ' ');
+			s++;
+			continue;
+		}
+		nsvg__textPutc(p, *s++);
+	}
+}
+
+/* The collected run becomes a shape (fill / stroke from the current attributes). */
+static void nsvg__flushText(NSVGparser* p)
+{
+	NSVGattrib* attr = nsvg__getAttr(p);
+	NSVGshape* shape;
+	int len = p->textLen;
+	while (len > 0 && p->textBuf[len - 1] == ' ') len--;
+	if (len <= 0 || (attr->hasFill == 0 && attr->hasStroke == 0)) { p->textLen = 0; return; }
+
+	shape = (NSVGshape*)malloc(sizeof(NSVGshape));
+	if (shape == NULL) { p->textLen = 0; return; }
+	memset(shape, 0, sizeof(NSVGshape));
+	shape->text = nsvg__strndup(p->textBuf, (size_t)len);
+	p->textLen = 0;
+	if (shape->text == NULL) { free(shape); return; }
+
+	memcpy(shape->id, attr->id, sizeof shape->id);
+	memcpy(shape->fillGradient, attr->fillGradient, sizeof shape->fillGradient);
+	memcpy(shape->strokeGradient, attr->strokeGradient, sizeof shape->strokeGradient);
+	memcpy(shape->xform, attr->xform, sizeof shape->xform);
+	memcpy(shape->textXform, attr->xform, sizeof shape->textXform);
+	shape->textX = p->textX;
+	shape->textY = p->textY;
+	memcpy(shape->fontFamily, attr->fontFamily, sizeof shape->fontFamily);
+	shape->fontSize = attr->fontSize > 0 ? attr->fontSize : 16.0f;
+	shape->fontWeight = attr->fontWeight > 0 ? attr->fontWeight : 400;
+	shape->fontItalic = attr->fontItalic;
+	shape->textAnchor = attr->textAnchor;
+	shape->textBaseline = attr->textBaseline;
+	shape->letterSpacing = attr->letterSpacing;
+	/* Stroke geometry stays in the run's space (the painter strokes under textXform). */
+	shape->strokeWidth = attr->strokeWidth;
+	shape->strokeDashOffset = attr->strokeDashOffset;
+	shape->strokeDashCount = (char)attr->strokeDashCount;
+	memcpy(shape->strokeDashArray, attr->strokeDashArray, sizeof shape->strokeDashArray);
+	shape->strokeLineJoin = attr->strokeLineJoin;
+	shape->strokeLineCap = attr->strokeLineCap;
+	shape->miterLimit = attr->miterLimit;
+	shape->fillRule = attr->fillRule;
+	shape->opacity = attr->opacity;
+	shape->paintOrder = attr->paintOrder;
+	/* Bounds: the anchor point (no metrics here). */
+	nsvg__xformPoint(&shape->bounds[0], &shape->bounds[1], p->textX, p->textY, attr->xform);
+	shape->bounds[2] = shape->bounds[0];
+	shape->bounds[3] = shape->bounds[1];
+
+	if (attr->hasFill == 0) {
+		shape->fill.type = NSVG_PAINT_NONE;
+	} else if (attr->hasFill == 1) {
+		shape->fill.type = NSVG_PAINT_COLOR;
+		shape->fill.color = attr->fillColor;
+		shape->fill.color |= (unsigned int)(attr->fillOpacity*255) << 24;
+	} else if (attr->hasFill == 2) {
+		shape->fill.type = NSVG_PAINT_UNDEF;
+	}
+	if (attr->hasStroke == 0) {
+		shape->stroke.type = NSVG_PAINT_NONE;
+	} else if (attr->hasStroke == 1) {
+		shape->stroke.type = NSVG_PAINT_COLOR;
+		shape->stroke.color = attr->strokeColor;
+		shape->stroke.color |= (unsigned int)(attr->strokeOpacity*255) << 24;
+	} else if (attr->hasStroke == 2) {
+		shape->stroke.type = NSVG_PAINT_UNDEF;
+	}
+	shape->flags = (attr->visible ? NSVG_FLAGS_VISIBLE : 0x00);
+
+	if (p->image->shapes == NULL)
+		p->image->shapes = shape;
+	else
+		p->shapesTail->next = shape;
+	p->shapesTail = shape;
+}
+
+/* x / y / dx / dy of <text> and <tspan>; the rest are ordinary attributes. Returns whether any was given. */
+static int nsvg__parseTextPosition(NSVGparser* p, const char** attr, float* x, float* y, float* dx, float* dy)
+{
+	int i, any = 0;
+	*x = *y = *dx = *dy = 0.0f;
+	for (i = 0; attr[i]; i += 2) {
+		if (strcmp(attr[i], "x") == 0) { *x = nsvg__parseCoordinate(p, attr[i + 1], nsvg__actualOrigX(p), nsvg__actualWidth(p)); any |= 1; }
+		else if (strcmp(attr[i], "y") == 0) { *y = nsvg__parseCoordinate(p, attr[i + 1], nsvg__actualOrigY(p), nsvg__actualHeight(p)); any |= 2; }
+		else if (strcmp(attr[i], "dx") == 0) { *dx = nsvg__parseCoordinate(p, attr[i + 1], 0.0f, nsvg__actualWidth(p)); any |= 4; }
+		else if (strcmp(attr[i], "dy") == 0) { *dy = nsvg__parseCoordinate(p, attr[i + 1], 0.0f, nsvg__actualHeight(p)); any |= 8; }
+		else nsvg__parseAttr(p, attr[i], attr[i + 1]);
+	}
+	return any;
+}
+
+static void nsvg__startText(NSVGparser* p, const char** attr)
+{
+	float x, y, dx, dy;
+	if (p->textFlag) return;		/* nested <text> is invalid SVG */
+	nsvg__pushAttr(p);
+	nsvg__parseTextPosition(p, attr, &x, &y, &dx, &dy);
+	p->textFlag = 1;
+	p->textLen = 0;
+	p->textX = x + dx;
+	p->textY = y + dy;
+	p->tspanOwnsRun[p->attrHead] = 1;
+}
+
+/* A <tspan> with its own x / y / dx / dy starts a new run at that position (the run so far is flushed
+   first); one without merges its characters into the enclosing run — the core has no text metrics,
+   so it cannot advance a pen. Text that follows a positioned tspan needs a position of its own. */
+static void nsvg__startTspan(NSVGparser* p, const char** attr)
+{
+	float x, y, dx, dy;
+	int any;
+	if (!p->textFlag) return;
+	/* Read the position first (against the parent's attributes), then push and apply the rest. */
+	nsvg__pushAttr(p);
+	any = nsvg__parseTextPosition(p, attr, &x, &y, &dx, &dy);
+	if (any) {
+		NSVGattrib saved = *nsvg__getAttr(p);
+		nsvg__popAttr(p);
+		nsvg__flushText(p);			/* the enclosing run, with ITS attributes */
+		nsvg__pushAttr(p);
+		*nsvg__getAttr(p) = saved;
+		if (any & 1) p->textX = x;
+		if (any & 2) p->textY = y;
+		p->textX += dx;
+		p->textY += dy;
+	}
+	p->tspanOwnsRun[p->attrHead] = any ? 1 : 0;
+}
+
+static void nsvg__endTspan(NSVGparser* p)
+{
+	if (!p->textFlag) return;
+	if (p->tspanOwnsRun[p->attrHead]) nsvg__flushText(p);
+	nsvg__popAttr(p);
+}
+
+static void nsvg__endText(NSVGparser* p)
+{
+	if (!p->textFlag) return;
+	nsvg__flushText(p);
+	nsvg__popAttr(p);
+	p->textFlag = 0;
+}
+
 static void nsvg__content(void* ud, const char* s)
 {
 	NSVGparser* p = (NSVGparser*)ud;
-	if (!p->styleFlag)
+	if (p->textFlag) {		/* ANYCANVAS */
+		nsvg__textAppend(p, s);
+		return;
+	}
+	while (*s && nsvg__isspace(*s)) s++;
+	if (!p->styleFlag || !*s)
 		return;
 
 	// Parse all the styles inside the style block. Each style's content will be later processed using nsvg__parseStyle().
@@ -3143,6 +3450,14 @@ static void nsvg__scaleToViewbox(NSVGparser* p, const char* units)
 			nsvg__xformInverse(shape->stroke.gradient->xform, t);
 		}
 
+		if (shape->text != NULL) {		/* ANYCANVAS: the run keeps its space; the viewbox goes into textXform */
+			nsvg__xformSetTranslation(t, tx, ty);
+			nsvg__xformMultiply(shape->textXform, t);
+			nsvg__xformSetScale(t, sx, sy);
+			nsvg__xformMultiply(shape->textXform, t);
+			continue;
+		}
+
 		shape->strokeWidth *= avgs;
 		shape->strokeDashOffset *= avgs;
 		for (i = 0; i < shape->strokeDashCount; i++)
@@ -3276,6 +3591,7 @@ void nsvgDelete(NSVGimage* image)
 		nsvg__deletePaths(shape->paths);
 		nsvg__deletePaint(&shape->fill);
 		nsvg__deletePaint(&shape->stroke);
+		free(shape->text);		/* ANYCANVAS */
 		free(shape);
 		shape = snext;
 	}

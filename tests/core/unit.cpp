@@ -285,6 +285,44 @@ static void testSvg() {
   CHECK(!looksLikeSvg("\x89PNG\r\n", 6));
 }
 
+static void testSvgText() {
+  const char* markup =
+    "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' width='200' height='200'>"
+    "<text x='10' y='20' font-family='\"Open Sans\", serif' font-size='12' font-weight='bold' text-anchor='middle' fill='#00f' letter-spacing='1'>"
+    "  Hi &amp; &#x41;<tspan> there</tspan></text>"
+    "<text x='5' y='50' font-style='italic' dominant-baseline='hanging' fill='none' stroke='red' stroke-width='2'>a<tspan x='5' y='70'>b</tspan></text>"
+    "<g transform='rotate(90)'><text font-size='8' fill='#000'>r</text></g>"
+    "<text x='1' y='1' fill='none'>none</text>"
+    "</svg>";
+  Svg* svg = parseSvg(markup, std::strlen(markup));
+  CHECK(svg != nullptr);
+  if (!svg) return;
+  DrawList l;
+  drawSvg(l, *svg, 0, 0, nullptr);
+  CHECK(countCmd(l, Draw::FILL_TEXT) == 2);     // "Hi & A there" + "r"; the none-filled text draws nothing
+  CHECK(countCmd(l, Draw::STROKE_TEXT) == 2);   // "a" and its positioned tspan "b"
+  const std::string json = l.toJson();
+  // Entities decoded, whitespace collapsed, the unpositioned tspan merged; the viewBox scale (2) sits in
+  // the transform, so the font size and the origin stay in the run's units.
+  CHECK(json.find("\"text\":\"Hi & A there\",\"x\":10,\"y\":20") != std::string::npos);
+  CHECK(json.find("\"font\":{\"family\":\"Open Sans\",\"size\":12,\"weight\":700,\"italic\":false},\"align\":\"center\",\"baseline\":\"alphabetic\",\"letterSpacing\":1") != std::string::npos);
+  CHECK(json.find("\"matrix\":[2,0,0,2,0,0]") != std::string::npos);
+  CHECK(json.find("\"text\":\"b\",\"x\":5,\"y\":70") != std::string::npos);
+  CHECK(json.find("\"italic\":true},\"align\":\"start\",\"baseline\":\"hanging\"") != std::string::npos);
+  CHECK(json.find("\"stroke\":{\"width\":2,") != std::string::npos);
+  CHECK(json.find(",2,-2,") != std::string::npos && json.find("\"text\":\"r\"") != std::string::npos);   // rotate(90) under the viewBox scale (cos 90° is float noise)
+  CHECK(json.find("\"text\":\"none\"") == std::string::npos);
+  delete svg;
+  // A truncated <text> and stray </tspan> never crash.
+  const char* truncated = "<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10'><text x='1'>abc<tspan x='2'>de";
+  Svg* bad = parseSvg(truncated, std::strlen(truncated));
+  delete bad;
+  const char* strayMarkup = "<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10'></tspan><tspan>x</tspan></svg>";
+  Svg* stray = parseSvg(strayMarkup, std::strlen(strayMarkup));
+  delete stray;
+  CHECK(true);
+}
+
 static void testEncodeAndApi() {
   const uint8_t px[16] = { 255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 255, 255, 255, 128 };
   size_t len = 0;
@@ -327,6 +365,7 @@ int main() {
   testHostileStreams();
   testReaderRoundTrip();
   testSvg();
+  testSvgText();
   testEncodeAndApi();
   std::printf("%d checks, %d failed\n", g_checks, g_failed);
   return g_failed ? 1 : 0;

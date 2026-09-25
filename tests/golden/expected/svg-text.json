@@ -1,0 +1,14 @@
+[
+{"cmd":"setTransform","matrix":[1,0,0,1,0,0]},
+{"cmd":"fillPath","rule":"nonzero","paint":{"kind":"color","alpha":1,"color":[0.95686275,0.95686275,0.95686275,1]},"path":[["M",0,0],["C",100,0,200,0,300,0],["C",300,66.666664,300,133.33334,300,200],["C",200,200,100,200,0,200],["C",0,133.33334,0,66.666664,0,0],["Z"]]},
+{"cmd":"fillText","text":"AnyCanvas & SVG","x":150,"y":40,"maxWidth":0,"font":{"family":"Inter","size":24,"weight":700,"italic":false},"align":"center","baseline":"alphabetic","letterSpacing":0,"paint":{"kind":"color","alpha":1,"color":[0.11764706,0.5647059,1,1]}},
+{"cmd":"fillText","text":"mono label collapsed","x":20,"y":80,"maxWidth":0,"font":{"family":"Roboto Mono","size":12,"weight":400,"italic":false},"align":"start","baseline":"alphabetic","letterSpacing":0,"paint":{"kind":"color","alpha":1,"color":[0.2,0.2,0.2,1]}},
+{"cmd":"strokeText","text":"outlined","x":280,"y":80,"maxWidth":0,"font":{"family":"sans-serif","size":14,"weight":400,"italic":true},"align":"end","baseline":"alphabetic","letterSpacing":2,"stroke":{"width":0.5,"join":"miter","cap":"butt","miterLimit":4,"dashOffset":0,"dash":[]},"paint":{"kind":"color","alpha":1,"color":[0.6666667,0,0,1]}},
+{"cmd":"fillText","text":"first","x":20,"y":120,"maxWidth":0,"font":{"family":"sans-serif","size":14,"weight":400,"italic":false},"align":"start","baseline":"middle","letterSpacing":0,"paint":{"kind":"color","alpha":1,"color":[0,0.5019608,0,1]}},
+{"cmd":"fillText","text":"second line","x":20,"y":140,"maxWidth":0,"font":{"family":"sans-serif","size":14,"weight":700,"italic":false},"align":"start","baseline":"middle","letterSpacing":0,"paint":{"kind":"color","alpha":1,"color":[0.5019608,0,0.5019608,1]}},
+{"cmd":"fillText","text":"shifted","x":80,"y":160,"maxWidth":0,"font":{"family":"sans-serif","size":10,"weight":400,"italic":false},"align":"start","baseline":"middle","letterSpacing":0,"paint":{"kind":"color","alpha":1,"color":[0,0.5019608,0,1]}},
+{"cmd":"setTransform","matrix":[0.8660254,-0.5,0.5,0.8660254,200,120]},
+{"cmd":"fillText","text":"rotated","x":0,"y":0,"maxWidth":0,"font":{"family":"sans-serif","size":16,"weight":400,"italic":false},"align":"start","baseline":"hanging","letterSpacing":0,"paint":{"kind":"color","alpha":0.6,"color":[0,0,0,1]}},
+{"cmd":"setTransform","matrix":[1,0,0,1,0,0]},
+{"cmd":"fillText","text":"gradient text","x":20,"y":180,"maxWidth":0,"font":{"family":"sans-serif","size":12,"weight":400,"italic":false},"align":"start","baseline":"alphabetic","letterSpacing":0,"paint":{"kind":"linear","alpha":1,"matrix":[100,0,0,100,20.000002,0],"spread":"pad","stops":[{"offset":0,"color":[1,0,0,1]},{"offset":1,"color":[0,0,1,1]}]}}
+]

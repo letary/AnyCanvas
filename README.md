@@ -96,10 +96,15 @@ produced (from wasm memory or a file); `paint(ctx, commands, { image, fontFamily
   scale is drawn by transforming the context, which also distorts a *stroke's* pen. Android's
   `RadialGradient` is concentric (the focal point is ignored). `letterSpacing` needs Chrome 99+ /
   Safari 17+ on the web.
-- SVG is nanosvg's model: shapes, fills, strokes, gradients, opacity, dashes, transforms, a tint
-  override. No text (planned: `<text>` / `<tspan>` in the parser, one `fillText` in the list), no
-  filters, masks, patterns or CSS. `objectBoundingBox` gradient coordinates must be percentages
-  (a bare `1` is one pixel — a nanosvg trait).
+- SVG is nanosvg's model plus text: shapes, fills, strokes, gradients, opacity, dashes, transforms,
+  a tint override, and `<text>` / `<tspan>` (x y dx dy, font-family / size / weight / style,
+  text-anchor, dominant-baseline / alignment-baseline, letter-spacing, fill, stroke, opacity,
+  transform, entities, whitespace collapse) as the same `fillText` / `strokeText` a canvas produces —
+  rendered with the platform's fonts. A `<tspan>` without its own position merges into the enclosing
+  run (the core has no metrics, so it cannot advance a pen): text after a positioned tspan needs a
+  position of its own. No `textPath`, per-glyph rotation, vertical writing, `@font-face` inside the
+  SVG, filters, masks, patterns or CSS beyond class selectors. `objectBoundingBox` gradient
+  coordinates must be percentages (a bare `1` is one pixel — a nanosvg trait).
 - A note for readers of the earlier Kotlin / Swift SVG libraries: nanosvg's `NSVGgradient::xform` is
   the *inverse* transform (image → gradient space) with the linear axis along gradient Y. The core
   inverts and canonicalizes it; `acdump png` (nanosvgrast) is the reference when in doubt.
@@ -109,13 +114,13 @@ produced (from wasm memory or a file); `paint(ctx, commands, { image, fontFamily
 | part | state |
 |---|---|
 | spec + generator | built; `bun run check:spec` |
-| core: interpreter, SVG, CSS, geometry, surfaces, encode, JSON, C API | built; 102 unit checks, 15 goldens |
+| core: interpreter, SVG, CSS, geometry, surfaces, encode, JSON, C API | built; 114 unit checks, 16 goldens |
 | recorders/ts | built; tested |
 | painters/web | built; tested on Skia (@napi-rs/canvas) |
 | painters/tgfx | written against the tgfx API of the LeCodes desktop host; compiles there (its step 3) |
 | painters/android | built + run on a phone: `:anycanvas:assembleRelease` → AAR (arm64, armv7, x86_64); `:demo:assembleDebug` = the device check app (all 15 goldens through libanycanvas.so + the Kotlin painter on screen) |
 | painters/apple, recorders/kotlin, recorders/swift | not started |
-| SVG `<text>` | not started (additive: parser + the existing text command) |
+| SVG `<text>` / `<tspan>` | built: the nanosvg parser extension (`ANYCANVAS` comments) + the existing text command; golden `svg-text` |
 
 ## License
 

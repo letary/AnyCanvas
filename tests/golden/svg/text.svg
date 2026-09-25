@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 200" width="300" height="200">
+  <style>.label { font-family: "Roboto Mono", monospace; font-size: 12px; fill: #333; }</style>
+  <rect x="0" y="0" width="300" height="200" fill="#f4f4f4"/>
+  <text x="150" y="40" font-family="Inter, sans-serif" font-size="24" font-weight="bold" text-anchor="middle" fill="#1e90ff">AnyCanvas &amp; SVG</text>
+  <text x="20" y="80" class="label">mono   label
+     collapsed</text>
+  <text x="280" y="80" text-anchor="end" font-style="italic" font-size="14" fill="none" stroke="#a00" stroke-width="0.5" letter-spacing="2">outlined</text>
+  <text x="20" y="120" font-size="14" dominant-baseline="middle" fill="green">first<tspan x="20" y="140" fill="purple" font-weight="700">second line</tspan><tspan dx="60" dy="20" font-size="10">shifted</tspan></text>
+  <g transform="translate(200 120) rotate(-30)" opacity="0.6">
+    <text font-size="16" fill="#000" dominant-baseline="hanging">rotated</text>
+  </g>
+  <text x="20" y="180" font-size="12" fill="url(#g)">gradient text</text>
+  <defs><linearGradient id="g" x1="20" y1="0" x2="120" y2="0" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="red"/><stop offset="1" stop-color="blue"/></linearGradient></defs>
+  <text x="150" y="195" font-size="8" fill="none">invisible: no fill, no stroke</text>
+  <text x="150" y="195" font-size="8" visibility="hidden">hidden</text>
+</svg>

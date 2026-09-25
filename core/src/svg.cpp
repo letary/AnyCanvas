@@ -103,9 +103,48 @@ void drawSvg(DrawList& out, const Svg& svg, float w, float h, const Color* tint)
     const float s = std::fmin(w / W, h / H);
     fit = Matrix::translation((w - W * s) / 2, (h - H * s) / 2).mul(Matrix::scaling(s, s));
   }
+  Matrix current;
   bool transformSet = false;
+  auto use = [&](const Matrix& m) {
+    if (!transformSet || current != m) { out.setTransform(m); current = m; transformSet = true; }
+  };
   for (const NSVGshape* shape = img->shapes; shape; shape = shape->next) {
     if (!(shape->flags & NSVG_FLAGS_VISIBLE)) continue;
+    if (shape->text) {
+      // A text run: drawn under fit ∘ textXform in its own space (the font size scales with the
+      // transform, a rotated <text> rotates), as the same fillText / strokeText a canvas produces.
+      Matrix X;
+      X.a = shape->textXform[0]; X.b = shape->textXform[1]; X.c = shape->textXform[2];
+      X.d = shape->textXform[3]; X.e = shape->textXform[4]; X.f = shape->textXform[5];
+      PaintData fill, stroke;
+      const bool hasFill = paintOf(shape->fill, shape->opacity, tint, fill);
+      const bool hasStroke = paintOf(shape->stroke, shape->opacity, tint, stroke) && shape->strokeWidth > 0;
+      if (!hasFill && !hasStroke) continue;
+      Matrix invX;
+      if (X.invert(invX)) {
+        // Gradient matrices are in image space; the command's user space is the run's: rebase them.
+        if (fill.kind != Paint::COLOR) fill.m = invX.mul(fill.m);
+        if (stroke.kind != Paint::COLOR) stroke.m = invX.mul(stroke.m);
+      }
+      use(fit.mul(X));
+      FontData font;
+      font.family = shape->fontFamily[0] ? shape->fontFamily : "sans-serif";
+      font.size = shape->fontSize;
+      font.weight = shape->fontWeight;
+      font.italic = shape->fontItalic != 0;
+      const TextAlign align = shape->textAnchor == 1 ? TextAlign::CENTER : shape->textAnchor == 2 ? TextAlign::END : TextAlign::START;
+      const TextBaseline baseline = shape->textBaseline >= 0 && shape->textBaseline <= 5 ? (TextBaseline)shape->textBaseline : TextBaseline::ALPHABETIC;
+      if (hasFill) out.fillText(shape->text, shape->textX, shape->textY, 0, font, align, baseline, shape->letterSpacing, fill);
+      if (hasStroke) {
+        StrokeData st;
+        st.width = shape->strokeWidth;
+        st.join = shape->strokeLineJoin == NSVG_JOIN_ROUND ? LineJoin::ROUND : shape->strokeLineJoin == NSVG_JOIN_BEVEL ? LineJoin::BEVEL : LineJoin::MITER;
+        st.cap = shape->strokeLineCap == NSVG_CAP_ROUND ? LineCap::ROUND : shape->strokeLineCap == NSVG_CAP_SQUARE ? LineCap::SQUARE : LineCap::BUTT;
+        st.miterLimit = shape->miterLimit > 0 ? shape->miterLimit : 4;
+        out.strokeText(shape->text, shape->textX, shape->textY, 0, font, align, baseline, shape->letterSpacing, st, stroke);
+      }
+      continue;
+    }
     Path path;
     for (const NSVGpath* np = shape->paths; np; np = np->next) {
       if (np->npts < 1) continue;
@@ -121,7 +160,7 @@ void drawSvg(DrawList& out, const Svg& svg, float w, float h, const Color* tint)
     const bool hasFill = paintOf(shape->fill, shape->opacity, tint, fill);
     const bool hasStroke = paintOf(shape->stroke, shape->opacity, tint, stroke) && shape->strokeWidth > 0;
     if (!hasFill && !hasStroke) continue;
-    if (!transformSet) { out.setTransform(fit); transformSet = true; }
+    use(fit);
     if (hasFill) out.fillPath(shape->fillRule == NSVG_FILLRULE_EVENODD ? FillRule::EVENODD : FillRule::NONZERO, fill, path);
     if (hasStroke) {
       StrokeData st;

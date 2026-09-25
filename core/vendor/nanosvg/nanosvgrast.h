@@ -1400,6 +1400,8 @@ void nsvgRasterize(NSVGrasterizer* r,
 	for (shape = image->shapes; shape != NULL; shape = shape->next) {
 		if (!(shape->flags & NSVG_FLAGS_VISIBLE))
 			continue;
+		if (shape->paths == NULL)		/* ANYCANVAS: a text run — no geometry to rasterize */
+			continue;
 
         for (j = 0; j < 3; j++) {
             paintOrder = (shape->paintOrder >> (2 * j)) & 0x03;
