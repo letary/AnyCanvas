@@ -18,3 +18,5 @@ Cargo.lock
 # SwiftPM
 .build/
 .swiftpm/
+xcuserdata/
+project.xcworkspace/
