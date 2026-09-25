@@ -6,11 +6,13 @@ platform replays it on the native 2D API. Same list everywhere, native text and 
 
 ![AnyCanvas: recorders and SVG go into the core, the draw list goes out to the painters](docs/images/architecture.svg)
 
-The same draw list, painted by Skia on the desktop (left) and by `android.graphics` on a phone (right):
+The same draw list, painted by Skia on the desktop (left), by `android.graphics` on a phone (middle)
+and by CoreGraphics (right):
 
 <p>
-  <img src="docs/images/shapes-skia.png" width="49%" alt="the shapes golden painted by the web painter on Skia">
-  <img src="docs/images/shapes-android.png" width="49%" alt="the same draw list painted by the Android painter on a phone">
+  <img src="docs/images/shapes-skia.png" width="32%" alt="the shapes golden painted by the web painter on Skia">
+  <img src="docs/images/shapes-android.png" width="32%" alt="the same draw list painted by the Android painter on a phone">
+  <img src="docs/images/shapes-coregraphics.png" width="32%" alt="the same draw list painted by the Apple painter on CoreGraphics">
 </p>
 
 SVG through the same core — nanosvg's shapes and gradients, plus `<text>` drawn with the platform's fonts:
@@ -69,7 +71,8 @@ rust/css-color/    the Rust twin of css_color.h (crate anycanvas-css-color; carg
 painters/web/      reader + Canvas2D painter (npm anycanvas-web)
 painters/android/  Kotlin painter + JNI binding, a Gradle library; demo/ = the on-device check app
 painters/tgfx/     C++ painter sources, compiled by the including build
-painters/apple/    Swift painter over CoreGraphics — later, on the Mac
+painters/apple/    Swift painter over CoreGraphics + CoreText and the Swift binding (SwiftPM, the manifest at the
+                   repo root: products AnyCanvasPainter / AnyCanvas, acpaint); demo/ = the on-device check app
 tools/acdump       draw lists and reference PNGs from the command line
 tests/             ctest (unit + css_color + golden), bun (recorder, reader, painter, color twin), cargo (color twin),
                    golden/ (the corpus; golden/colors: the color corpus + the C++ parser's answers)
@@ -83,6 +86,9 @@ docs/images/       this README's pictures; `bun tests/ts/readme-images.ts` regen
 bun install && bun test tests/ts    recorder, reader, web painter on Skia
 ./build.ps1 -Update                 rewrite the goldens after an intended change — review the diff
 painters/android: ./gradlew :anycanvas:assembleRelease · :demo:assembleDebug (16 goldens on the phone)
+swift test                          reader, core goldens, painter pixels on the Mac (CoreGraphics is the same API there)
+xcodebuild test -scheme AnyCanvas-Package -destination 'platform=iOS Simulator,name=iPhone 17'
+swift run acpaint list.bin out.png  a draw list or SVG painted by CoreGraphics
 build/acdump svg file.svg           the draw list of an SVG; `png file.svg out.png` = a CPU reference raster
 ```
 
@@ -107,7 +113,8 @@ float trig differs in the last digits between libms.
 ## Status
 
 Built and tested: spec + generator, core, TS recorder and painter, Android painter + JNI (AAR, checked
-on a phone), SVG text. Written, compiled by its host build: the tgfx painter. Not started: the Apple
-painter, the Kotlin and Swift recorders.
+on a phone), SVG text, the Apple painter + binding (SwiftPM; 48 tests on the Mac and the iPhone
+simulator, the cross-painter reference against nanosvgrast). Written, compiled by its host build: the
+tgfx painter. Not started: the Kotlin and Swift recorders.
 
 MIT. nanosvg is zlib, stb_image_write public domain.

@@ -1,0 +1,254 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A1000001000000000000A001 /* AnyCanvas in Frameworks */ = {isa = PBXBuildFile; productRef = A1000001000000000000D001 /* AnyCanvas */; };
+		A1000001000000000000A002 /* golden in Resources */ = {isa = PBXBuildFile; fileRef = A1000001000000000000F002 /* golden */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		A1000001000000000000F001 /* AnyCanvasDemo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AnyCanvasDemo.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A1000001000000000000F002 /* golden */ = {isa = PBXFileReference; lastKnownFileType = folder; name = golden; path = ../../../tests/golden; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		A1000001000000000000G001 /* AnyCanvasDemo */ = {isa = PBXFileSystemSynchronizedRootGroup; path = AnyCanvasDemo; sourceTree = "<group>"; };
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		A1000001000000000000B002 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A1000001000000000000A001 /* AnyCanvas in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		A1000001000000000000G000 = {
+			isa = PBXGroup;
+			children = (
+				A1000001000000000000G001 /* AnyCanvasDemo */,
+				A1000001000000000000F002 /* golden */,
+				A1000001000000000000G002 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		A1000001000000000000G002 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A1000001000000000000F001 /* AnyCanvasDemo.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		A1000001000000000000T001 /* AnyCanvasDemo */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A1000001000000000000C003 /* Build configuration list for PBXNativeTarget "AnyCanvasDemo" */;
+			buildPhases = (
+				A1000001000000000000B001 /* Sources */,
+				A1000001000000000000B002 /* Frameworks */,
+				A1000001000000000000B003 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				A1000001000000000000G001 /* AnyCanvasDemo */,
+			);
+			name = AnyCanvasDemo;
+			packageProductDependencies = (
+				A1000001000000000000D001 /* AnyCanvas */,
+			);
+			productName = AnyCanvasDemo;
+			productReference = A1000001000000000000F001 /* AnyCanvasDemo.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A1000001000000000000P001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1600;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					A1000001000000000000T001 = {
+						CreatedOnToolsVersion = 16.0;
+					};
+				};
+			};
+			buildConfigurationList = A1000001000000000000C000 /* Build configuration list for PBXProject "AnyCanvasDemo" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = A1000001000000000000G000;
+			packageReferences = (
+				A1000001000000000000K001 /* XCLocalSwiftPackageReference "../../.." */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = A1000001000000000000G002 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				A1000001000000000000T001 /* AnyCanvasDemo */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		A1000001000000000000B003 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A1000001000000000000A002 /* golden in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		A1000001000000000000B001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		A1000001000000000000C001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_TESTABILITY = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		A1000001000000000000C002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_VERSION = 5.0;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		A1000001000000000000C004 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = io.letary.anycanvas.demo;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		A1000001000000000000C005 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = io.letary.anycanvas.demo;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		A1000001000000000000C000 /* Build configuration list for PBXProject "AnyCanvasDemo" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A1000001000000000000C001 /* Debug */,
+				A1000001000000000000C002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A1000001000000000000C003 /* Build configuration list for PBXNativeTarget "AnyCanvasDemo" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A1000001000000000000C004 /* Debug */,
+				A1000001000000000000C005 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		A1000001000000000000K001 /* XCLocalSwiftPackageReference "../../.." */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../../..;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A1000001000000000000D001 /* AnyCanvas */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = AnyCanvas;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = A1000001000000000000P001 /* Project object */;
+}

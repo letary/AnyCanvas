@@ -9,6 +9,7 @@
 //                     inside its runtime) and hands the painter the words the core produced.
 //   AnyCanvas         the core (C++17, target CAnyCanvas) + its Swift binding (interpret, SVG, encode)
 //                     + the painter: the standalone library.
+//   acpaint           (executable, macOS) a draw list or SVG → PNG through the painter.
 //
 // The painter is CoreGraphics + CoreText only (no UIKit / AppKit), so the package builds and its tests
 // run on macOS as well as iOS: `swift test` on a Mac is the fast check, the iPhone simulator through
@@ -57,6 +58,12 @@ let package = Package(
             name: "AnyCanvas",
             dependencies: ["CAnyCanvas", "AnyCanvasPainter"],
             path: "painters/apple/Sources/AnyCanvas"
+        ),
+        // acpaint: a draw list → PNG through the painter, from the command line (macOS; the README images).
+        .executableTarget(
+            name: "acpaint",
+            dependencies: ["AnyCanvas"],
+            path: "painters/apple/Sources/acpaint"
         ),
         .testTarget(
             name: "AnyCanvasTests",

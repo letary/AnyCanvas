@@ -38,6 +38,7 @@ public struct DefaultHooks: PainterHooks {
 public final class Painter {
     public let hooks: PainterHooks
     public static let colorSpace = CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB()
+    static let transparent = cgColor(Color(r: 0, g: 0, b: 0, a: 0))
 
     public init(hooks: PainterHooks = DefaultHooks()) { self.hooks = hooks }
 
@@ -296,8 +297,8 @@ public final class Painter {
         ctx.setTextDrawingMode(mode)
         // `.fillClip` / `.strokeClip` also paint with the current color; a transparent one leaves
         // only the clip for the gradient below.
-        if mode == .fillClip { ctx.setFillColor(CGColor(colorSpace: Painter.colorSpace, components: [0, 0, 0, 0]) ?? .clear) }
-        if mode == .strokeClip { ctx.setStrokeColor(CGColor(colorSpace: Painter.colorSpace, components: [0, 0, 0, 0]) ?? .clear) }
+        if mode == .fillClip { ctx.setFillColor(Painter.transparent) }
+        if mode == .strokeClip { ctx.setStrokeColor(Painter.transparent) }
         CTLineDraw(line.line, ctx)
         if mode == .fillClip || mode == .strokeClip {
             ctx.scaleBy(x: 1, y: -1)
