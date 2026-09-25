@@ -91,4 +91,6 @@ encode round trip through ImageIO; `CrossPainterTests` (macOS) five shapes-only 
 `acdump png` — mean channel error under 1/255 away from edges.
 
 `demo/` is the on-device check (the Android demo's twin): an Xcode project that bundles `tests/golden`,
-runs every golden through the core, compares the JSON, and paints each list on screen.
+runs every golden through the core, compares the JSON, and paints each list on screen. For a phone,
+put `DEVELOPMENT_TEAM = <your team id>` in `demo/Local.xcconfig` (gitignored; `Signing.xcconfig`
+includes it optionally) — the team never lands in the committed project.

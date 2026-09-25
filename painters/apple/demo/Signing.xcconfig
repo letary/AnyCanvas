@@ -1,0 +1,6 @@
+// The demo's signing, kept OUT of the public project: put your team in Local.xcconfig beside this
+// file (gitignored) —
+//     DEVELOPMENT_TEAM = ABCDE12345
+// — and Xcode's Signing pane shows it selected without writing anything into the pbxproj. Without
+// the file the project still builds for the simulator and CI (CODE_SIGNING_ALLOWED=NO).
+#include? "Local.xcconfig"

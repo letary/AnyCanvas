@@ -20,3 +20,4 @@ Cargo.lock
 .swiftpm/
 xcuserdata/
 project.xcworkspace/
+painters/apple/demo/Local.xcconfig

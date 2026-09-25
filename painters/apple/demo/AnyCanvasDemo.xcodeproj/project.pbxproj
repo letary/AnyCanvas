@@ -14,6 +14,7 @@
 /* Begin PBXFileReference section */
 		A1000001000000000000F001 /* AnyCanvasDemo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AnyCanvasDemo.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A1000001000000000000F002 /* golden */ = {isa = PBXFileReference; lastKnownFileType = folder; name = golden; path = ../../../tests/golden; sourceTree = "<group>"; };
+		A1000001000000000000F003 /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -41,6 +42,7 @@
 			children = (
 				A1000001000000000000G001 /* AnyCanvasDemo */,
 				A1000001000000000000F002 /* golden */,
+				A1000001000000000000F003 /* Signing.xcconfig */,
 				A1000001000000000000G002 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -179,6 +181,7 @@
 		};
 		A1000001000000000000C004 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = A1000001000000000000F003 /* Signing.xcconfig */;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -199,6 +202,7 @@
 		};
 		A1000001000000000000C005 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = A1000001000000000000F003 /* Signing.xcconfig */;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
