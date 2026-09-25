@@ -266,11 +266,14 @@ public final class Painter {
         if t.text.isEmpty { return }
         let font = hooks.font(t.font)
         let line = TextLine(t.text, font: font, letterSpacing: CGFloat(t.letterSpacing))
-        let ax = TextLine.alignedX(CGFloat(t.x), width: line.width, align: t.align)
+        // Canvas2D condenses a line wider than maxWidth horizontally, and aligns the CONDENSED box
+        // at x (the anchor is kept: a centered line stays centered on x).
+        let condense = t.maxWidth > 0 && line.width > CGFloat(t.maxWidth)
+        let drawnWidth = condense ? CGFloat(t.maxWidth) : line.width
+        let ax = TextLine.alignedX(CGFloat(t.x), width: drawnWidth, align: t.align)
         let by = TextLine.baselineY(CGFloat(t.y), ascent: line.ascent, descent: line.descent, baseline: t.baseline)
         ctx.saveGState()
-        if t.maxWidth > 0, line.width > CGFloat(t.maxWidth) {
-            // Canvas2D condenses a line wider than maxWidth horizontally.
+        if condense {
             ctx.translateBy(x: ax, y: 0)
             ctx.scaleBy(x: CGFloat(t.maxWidth) / line.width, y: 1)
             ctx.translateBy(x: -ax, y: 0)
