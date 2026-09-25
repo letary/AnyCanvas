@@ -4,7 +4,7 @@ import { describe, expect, test } from "bun:test"
 import { readdirSync, readFileSync, mkdirSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { createCanvas } from "@napi-rs/canvas"
-import { paint, parseDrawListJson } from "anycanvas-web"
+import { paint, parseDrawListJson, type DrawCommand } from "anycanvas-web"
 import { goldenDir } from "./helpers"
 
 const expectedDir = join(goldenDir, "expected")
@@ -45,5 +45,14 @@ describe("web painter", () => {
     // The gradient card: white-ish at the top, grey at the bottom.
     const top = pixel(ctx, 200, 250), bottom = pixel(ctx, 200, 390)
     expect(top[0]).toBeGreaterThan(bottom[0] + 60)
+  })
+
+  test("a list-level clip does not outlive the paint (the next clearRect + replay cover the whole surface)", () => {
+    const ctx = createCanvas(8, 8).getContext("2d") as any
+    const fill = (color: [number, number, number, number]): DrawCommand => ({ cmd: "fillPath", rule: "nonzero", paint: { kind: "color", alpha: 1, color }, path: [["M", 0, 0], ["L", 8, 0], ["L", 8, 8], ["L", 0, 8], ["Z"]] })
+    paint(ctx, [{ cmd: "clip", rule: "nonzero", path: [["M", 0, 0], ["L", 4, 0], ["L", 4, 8], ["L", 0, 8], ["Z"]] }, fill([1, 0, 0, 1])])
+    ctx.clearRect(0, 0, 8, 8)
+    paint(ctx, [fill([0, 0, 1, 1])])
+    expect(pixel(ctx, 6, 4)).toEqual([0, 0, 255, 255])
   })
 })

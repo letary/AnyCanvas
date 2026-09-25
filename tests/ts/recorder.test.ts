@@ -69,6 +69,24 @@ describe("recorder", () => {
     expect(c.fillStyle as unknown).toEqual("#000000")
   })
 
+  test("restore() brings the getters back like the core's state stack; reset() drops the saved states", () => {
+    const c = new Recorder()
+    c.font = "bold 24px Inter"
+    c.save()
+    c.font = "12px Inter"
+    c.letterSpacing = 3
+    c.restore()
+    expect(c.font).toBe("bold 24px Inter")
+    expect(c.letterSpacing).toBe(0)
+    c.restore()   // unbalanced: the core ignores it, the getters keep their values
+    expect(c.font).toBe("bold 24px Inter")
+    c.save()
+    c.font = "9px Inter"
+    c.reset()
+    c.restore()
+    expect(c.font).toBe("10px sans-serif")
+  })
+
   test("drawImage forms", () => {
     const c = new Recorder()
     const img = { surface: 3, width: 10, height: 20 }

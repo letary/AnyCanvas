@@ -137,29 +137,38 @@ const applyText = (ctx: Canvas2DLike, c: { font: Font, align: string, baseline: 
 }
 
 /** Replay `commands` on `ctx`. The context should start with the identity transform and an empty
- *  save stack (the painter sets the identity itself); clearing the surface is the caller's decision. */
+ *  save stack (the painter sets the identity itself); clearing the surface is the caller's decision.
+ *  The replay runs inside one save, so no clip, transform or style it sets outlives it (Canvas2D
+ *  keeps a clip set outside any save, and the next paint's clearRect would clear only that clip). */
 export const paint = (ctx: Canvas2DLike, commands: DrawCommand[], hooks: PainterHooks = {}): void => {
-  ctx.setTransform(1, 0, 0, 1, 0, 0)
-  ctx.globalAlpha = 1
-  for (const c of commands) {
-    switch (c.cmd) {
-      case "setTransform": ctx.setTransform(c.matrix[0], c.matrix[1], c.matrix[2], c.matrix[3], c.matrix[4], c.matrix[5]); break
-      case "save": ctx.save(); break
-      case "restore": ctx.restore(); break
-      case "clip": buildPath(ctx, c.path); ctx.clip(c.rule as "nonzero" | "evenodd"); break
-      case "fillPath": buildPath(ctx, c.path); withPaint(ctx, c.paint, "fill", () => ctx.fill(c.rule as "nonzero" | "evenodd")); break
-      case "strokePath": buildPath(ctx, c.path); applyStroke(ctx, c.stroke); withPaint(ctx, c.paint, "stroke", () => ctx.stroke()); break
-      case "fillText": applyText(ctx, c, hooks); withPaint(ctx, c.paint, "fill", () => c.maxWidth > 0 ? ctx.fillText(c.text, c.x, c.y, c.maxWidth) : ctx.fillText(c.text, c.x, c.y)); break
-      case "strokeText": applyText(ctx, c, hooks); applyStroke(ctx, c.stroke); withPaint(ctx, c.paint, "stroke", () => c.maxWidth > 0 ? ctx.strokeText(c.text, c.x, c.y, c.maxWidth) : ctx.strokeText(c.text, c.x, c.y)); break
-      case "drawImage": {
-        const img = hooks.image?.(c.surface)
-        if (!img) break
-        ctx.globalAlpha = c.alpha
-        ctx.drawImage(img, c.src[0], c.src[1], c.src[2], c.src[3], c.dst[0], c.dst[1], c.dst[2], c.dst[3])
-        break
+  ctx.save()
+  let saves = 0   // a list restore never pops the wrapper save
+  try {
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
+    ctx.globalAlpha = 1
+    for (const c of commands) {
+      switch (c.cmd) {
+        case "setTransform": ctx.setTransform(c.matrix[0], c.matrix[1], c.matrix[2], c.matrix[3], c.matrix[4], c.matrix[5]); break
+        case "save": ctx.save(); saves++; break
+        case "restore": if (saves > 0) { ctx.restore(); saves-- } break
+        case "clip": buildPath(ctx, c.path); ctx.clip(c.rule as "nonzero" | "evenodd"); break
+        case "fillPath": buildPath(ctx, c.path); withPaint(ctx, c.paint, "fill", () => ctx.fill(c.rule as "nonzero" | "evenodd")); break
+        case "strokePath": buildPath(ctx, c.path); applyStroke(ctx, c.stroke); withPaint(ctx, c.paint, "stroke", () => ctx.stroke()); break
+        case "fillText": applyText(ctx, c, hooks); withPaint(ctx, c.paint, "fill", () => c.maxWidth > 0 ? ctx.fillText(c.text, c.x, c.y, c.maxWidth) : ctx.fillText(c.text, c.x, c.y)); break
+        case "strokeText": applyText(ctx, c, hooks); applyStroke(ctx, c.stroke); withPaint(ctx, c.paint, "stroke", () => c.maxWidth > 0 ? ctx.strokeText(c.text, c.x, c.y, c.maxWidth) : ctx.strokeText(c.text, c.x, c.y)); break
+        case "drawImage": {
+          const img = hooks.image?.(c.surface)
+          if (!img) break
+          ctx.globalAlpha = c.alpha
+          ctx.drawImage(img, c.src[0], c.src[1], c.src[2], c.src[3], c.dst[0], c.dst[1], c.dst[2], c.dst[3])
+          break
+        }
+        case "clearRect": ctx.clearRect(c.rect[0], c.rect[1], c.rect[2], c.rect[3]); break
+        default: { const never: never = c; throw new Error(`unhandled draw command ${(never as DrawCommand).cmd}`) }
       }
-      case "clearRect": ctx.clearRect(c.rect[0], c.rect[1], c.rect[2], c.rect[3]); break
-      default: { const never: never = c; throw new Error(`unhandled draw command ${(never as DrawCommand).cmd}`) }
     }
+  } finally {
+    for (; saves > 0; saves--) ctx.restore()
+    ctx.restore()
   }
 }

@@ -25,6 +25,9 @@ const BASELINE: Record<TextBaselineName, number> = {
   bottom: TextBaseline.BOTTOM, hanging: TextBaseline.HANGING, ideographic: TextBaseline.IDEOGRAPHIC,
 }
 const RULE: Record<FillRuleName, number> = { nonzero: FillRule.NONZERO, evenodd: FillRule.EVENODD }
+// The shadowed style fields save() / restore() snapshot, as the core's state stack does.
+const SHADOWED = ["_globalAlpha", "_fillStyle", "_strokeStyle", "_lineWidth", "_lineJoin", "_lineCap", "_miterLimit",
+  "_lineDash", "_lineDashOffset", "_font", "_textAlign", "_textBaseline", "_letterSpacing"] as const
 
 /** A gradient built by createLinearGradient / createRadialGradient; assign it to fillStyle / strokeStyle. */
 export class Gradient {
@@ -65,6 +68,9 @@ export class Recorder {
   private _textAlign: TextAlignName = "start"
   private _textBaseline: TextBaselineName = "alphabetic"
   private _letterSpacing = 0
+  // One snapshot of the shadowed fields per open save(), so the getters read back what restore()
+  // brings back (by reference: setLineDash stores a fresh array, a Gradient is the assigned object).
+  private _saved: Record<string, unknown>[] = []
 
   // ---- the stream -----------------------------------------------------------------------------
 
@@ -83,6 +89,7 @@ export class Recorder {
     this._lineWidth = 1; this._lineJoin = "miter"; this._lineCap = "butt"; this._miterLimit = 10
     this._lineDash = []; this._lineDashOffset = 0
     this._font = "10px sans-serif"; this._textAlign = "start"; this._textBaseline = "alphabetic"; this._letterSpacing = 0
+    this._saved.length = 0
     return this
   }
 
@@ -95,8 +102,17 @@ export class Recorder {
 
   // ---- state stack + transforms ---------------------------------------------------------------
 
-  save(): this { return this.push(OP.SAVE) }
-  restore(): this { return this.push(OP.RESTORE) }
+  save(): this {
+    const s: Record<string, unknown> = {}
+    for (const k of SHADOWED) s[k] = this[k]
+    this._saved.push(s)
+    return this.push(OP.SAVE)
+  }
+  restore(): this {
+    const s = this._saved.pop()   // an unbalanced restore() keeps the state, like the core
+    if (s) Object.assign(this, s)
+    return this.push(OP.RESTORE)
+  }
   translate(x: number, y: number): this { return this.push(OP.TRANSLATE, x, y) }
   scale(sx: number, sy: number): this { return this.push(OP.SCALE, sx, sy) }
   rotate(rad: number): this { return this.push(OP.ROTATE, rad) }

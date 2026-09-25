@@ -47,28 +47,31 @@ tgfx::Path toTgfx(const Path& p) {
   return path;
 }
 
-// The paint's color or shader + its alpha.
+// The paint's color or shader, times its alpha. setColor replaces the alpha too, so the paint alpha
+// goes INTO every color (tgfx::Color is unpremultiplied).
 void applyPaint(tgfx::Paint& paint, const PaintData& p) {
-  paint.setAlpha(p.alpha);
+  auto withAlpha = [&](const Color& c) { tgfx::Color t = toTgfx(c); t.alpha *= p.alpha; return t; };
   if (p.kind == Paint::COLOR) {
-    paint.setColor(toTgfx(p.color));
+    paint.setColor(withAlpha(p.color));
     return;
   }
+  // The unit end circle at the origin; tgfx's radial gradient is concentric, so the focal point is
+  // ignored here like on Android (documented). The start radius r0 is honoured by moving the stops
+  // onto [r0, 1] (tgfx pads [0, r0) with the first color) — exact for concentric circles.
+  const float r0 = (p.kind == Paint::RADIAL && p.r0 > 0 && p.r0 < 1) ? p.r0 : 0.0f;
   std::vector<tgfx::Color> colors;
   std::vector<float> positions;
-  for (const auto& s : p.stops) { colors.push_back(toTgfx(s.color)); positions.push_back(s.offset); }
+  for (const auto& s : p.stops) { colors.push_back(toTgfx(s.color)); positions.push_back(r0 + s.offset * (1 - r0)); }
   std::shared_ptr<tgfx::Shader> shader;
   if (p.kind == Paint::LINEAR) {
     shader = tgfx::Shader::MakeLinearGradient(tgfx::Point::Make(0, 0), tgfx::Point::Make(1, 0), colors, positions);
   } else {
-    // The unit end circle at the origin; tgfx's radial gradient is concentric, so the focal point is
-    // ignored here like on Android (documented).
     shader = tgfx::Shader::MakeRadialGradient(tgfx::Point::Make(0, 0), 1.0f, colors, positions);
   }
   if (shader) shader = shader->makeWithMatrix(toTgfx(p.m));
-  if (!shader) { paint.setColor(toTgfx(p.stops.empty() ? Color{ 0, 0, 0, 0 } : p.stops.back().color)); return; }
-  paint.setShader(shader);
-  paint.setColor(tgfx::Color::White());   // the shader supplies the color; alpha stays on the paint
+  if (!shader) { paint.setColor(withAlpha(p.stops.empty() ? Color{ 0, 0, 0, 0 } : p.stops.back().color)); return; }
+  paint.setColor(tgfx::Color{ 1, 1, 1, p.alpha });   // the gradient multiplies its output by this alpha
+  paint.setShader(shader);                            // after setColor: a shader that reduces to a color folds this alpha in
 }
 
 void applyStroke(tgfx::Paint& paint, const StrokeData& s) {
@@ -113,8 +116,7 @@ void drawText(tgfx::Canvas* canvas, const TgfxHooks& hooks, const std::string& t
   float asc = 0, desc = 0;
   if (hooks.metrics) hooks.metrics(font, asc, desc);
   else { auto m = font.getMetrics(); asc = -m.ascent; desc = m.descent; }
-  // letterSpacing is applied by the host's shaper when it supports it; the width here is the plain advance.
-  const float w = hooks.measure(text, font) + letterSpacing * (float)(text.size() > 0 ? text.size() - 1 : 0);
+  const float w = hooks.measure(text, font, letterSpacing);   // with the gap after every glyph, as drawn
   const float ax = alignedX(x, w, align);
   const float by = baselineY(y, asc, desc, baseline);
   const bool condense = maxWidth > 0 && w > maxWidth;
@@ -124,7 +126,7 @@ void drawText(tgfx::Canvas* canvas, const TgfxHooks& hooks, const std::string& t
     canvas->scale(maxWidth / w, 1.0f);
     canvas->translate(-ax, 0);
   }
-  hooks.drawLine(canvas, text, ax, by, font, paint);
+  hooks.drawLine(canvas, text, ax, by, font, paint, letterSpacing);
   if (condense) canvas->restore();
 }
 
@@ -134,6 +136,10 @@ void paintTgfx(tgfx::Canvas* canvas, const float* words, int32_t wordCount, cons
   if (!canvas) return;
   canvas->restoreToCount(0);   // tgfx's base save count is 0 (not Skia's 1)
   canvas->resetMatrix();
+  // A list-level CLIP (an app clip() without save()) lands inside this save, and the final
+  // restoreToCount(0) drops it: tgfx keeps a base-level clip on the canvas, and the next paint's
+  // clear() would fill only that clip. RESTORE is guarded by `saves`, so the list never pops it.
+  canvas->save();
   DrawReader r(words, wordCount, strings, stringCount);
   int32_t cmd = 0, end = 0;
   int saves = 0;
@@ -207,7 +213,7 @@ void paintTgfx(tgfx::Canvas* canvas, const float* words, int32_t wordCount, cons
     if (!r.ok()) break;
     r.seek(end);
   }
-  canvas->restoreToCount(0);
+  canvas->restoreToCount(0);   // pops the wrapper save with every clip the list set
 }
 
 }  // namespace anycanvas

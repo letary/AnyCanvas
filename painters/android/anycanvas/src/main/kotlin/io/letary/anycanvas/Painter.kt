@@ -140,8 +140,11 @@ class Painter(private val hooks: PainterHooks = object : PainterHooks {}) {
                 paint.alpha = (p.alpha * 255f).roundToInt().coerceIn(0, 255)
             }
             is PaintData.Radial -> {
+                // The start radius r0: the stops move onto [r0, 1] (Skia pads [0, r0) with the first
+                // color) — exact for concentric circles.
+                val r0 = if (p.r0 > 0f && p.r0 < 1f) p.r0 else 0f
                 val colors = IntArray(p.stops.size) { argb(p.stops[it].color, 1f) }
-                val positions = FloatArray(p.stops.size) { p.stops[it].offset }
+                val positions = FloatArray(p.stops.size) { r0 + p.stops[it].offset * (1f - r0) }
                 paint.shader = RadialGradient(0f, 0f, 1f, colors, positions, tileMode(p.spread)).apply { setLocalMatrix(localMatrix(p.matrix)) }
                 paint.color = Color.WHITE
                 paint.alpha = (p.alpha * 255f).roundToInt().coerceIn(0, 255)
