@@ -1,0 +1,16 @@
+[package]
+name = "anycanvas-css-color"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "The CSS color parser of AnyCanvas: the Rust twin of css_color.h, bit-equal to it and to the TS twin"
+repository = "https://github.com/letary/AnyCanvas"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+
+[dev-dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

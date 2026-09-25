@@ -10,3 +10,7 @@ local.properties
 .cxx/
 .idea/
 *.iml
+
+# rust/css-color
+target/
+Cargo.lock

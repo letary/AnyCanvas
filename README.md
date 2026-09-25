@@ -26,7 +26,7 @@ SVG through the same core — nanosvg's shapes and gradients, plus `<text>` draw
 |---|---|
 | **opcode stream** | what a recorder writes: `Float32Array` + strings, the Canvas2D model (state, transforms, paths, fill / stroke / clip, text, images) plus gradients, dashes, fill rule, letter spacing. Defined in [spec/ops.h](spec/ops.h). |
 | **core** | C++17, no platform code: interprets the stream, parses SVG (nanosvg, extended with `<text>`), resolves CSS colors and fonts, turns arcs into cubics, normalizes gradients. C API in [anycanvas.h](core/include/anycanvas/anycanvas.h). Runs native, as wasm, behind JNI. |
-| **CSS colors** | ONE parser for canvas styles and SVG: [css_color.h](core/include/anycanvas/css_color.h), header-only C++17 (other engines include it by path, no linking) — hex 3/4/6/8, `rgb()` / `hsl()` in comma or space syntax, the 148 CSS Color 4 names, `transparent`, and `clear` (the one non-CSS alias). Its TypeScript twin is `parseCssColor` in `anycanvas-recorder`; `tests/golden/colors` holds the two bit-equal. |
+| **CSS colors** | ONE parser for canvas styles and SVG: [css_color.h](core/include/anycanvas/css_color.h), header-only C++17 (other engines include it by path, no linking) — hex 3/4/6/8, `rgb()` / `hsl()` in comma or space syntax, the 148 CSS Color 4 names, `transparent`, and `clear` (the one non-CSS alias). Its twins: `parseCssColor` in `anycanvas-recorder` (TypeScript) and the `anycanvas-css-color` crate in [rust/css-color](rust/css-color) (Rust, `no_std`, no dependencies — for build tools that fold color literals at compile time); `tests/golden/colors` holds the three bit-equal. |
 | **draw list** | what the core emits: ten commands with everything resolved — absolute transforms, RGBA, `(family size weight italic)`, path verbs, alpha on the paint. Defined in [spec/draw.h](spec/draw.h). |
 | **painter** | a loop with one case per command on Canvas2D, `android.graphics`, tgfx or CoreGraphics. Fonts, shaping and image decoding are the platform's, through a few hooks. |
 
@@ -65,12 +65,13 @@ ac_encode(rgba, w, h, 0 /* png */, 100, &bytes);
 spec/              ops.h · draw.h · enums.h, generate.ts → gen/ (TS, Kotlin, Swift)
 core/              the library (C API + C++ internals), vendor/ nanosvg + stb
 recorders/ts/      Recorder (npm anycanvas-recorder)
+rust/css-color/    the Rust twin of css_color.h (crate anycanvas-css-color; cargo test = the color golden)
 painters/web/      reader + Canvas2D painter (npm anycanvas-web)
 painters/android/  Kotlin painter + JNI binding, a Gradle library; demo/ = the on-device check app
 painters/tgfx/     C++ painter sources, compiled by the including build
 painters/apple/    Swift painter over CoreGraphics — later, on the Mac
 tools/acdump       draw lists and reference PNGs from the command line
-tests/             ctest (unit + css_color + golden), bun (recorder, reader, painter, color twin),
+tests/             ctest (unit + css_color + golden), bun (recorder, reader, painter, color twin), cargo (color twin),
                    golden/ (the corpus; golden/colors: the color corpus + the C++ parser's answers)
 docs/images/       this README's pictures; `bun tests/ts/readme-images.ts` regenerates them from the goldens
 ```
