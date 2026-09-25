@@ -14,3 +14,7 @@ local.properties
 # rust/css-color
 target/
 Cargo.lock
+
+# SwiftPM
+.build/
+.swiftpm/

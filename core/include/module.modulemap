@@ -1,0 +1,6 @@
+// The Clang module of the C API for Swift (SwiftPM reads this file from the public headers dir).
+// Only anycanvas.h: css_color.h is C++ and is not importable into Swift.
+module CAnyCanvas {
+    header "anycanvas/anycanvas.h"
+    export *
+}
