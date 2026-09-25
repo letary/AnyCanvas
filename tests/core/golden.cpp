@@ -6,6 +6,12 @@
 //   anycanvas-golden <tests/golden> --update   rewrite the expected files (review the diff!)
 //
 // SVG goldens render at the natural size unless a sidecar <name>.svg.json says {"fit": [w, h], "tint": "#..."}.
+//
+// The color golden: tests/golden/colors/corpus.json (the syntax cases, by group) + every name of
+// anycanvas/css_color.h and its keywords, lower and UPPER case → tests/golden/colors/expected.json,
+// one line per input: {"in", "rgba8": "#rrggbbaa" | null, "rgba": [r, g, b, a] | null}. The TS twin's
+// test (tests/ts/cssColor.test.ts) must produce the same bits from the same file.
+#include "anycanvas/css_color.h"
 #include "css.h"
 #include "drawlist.h"
 #include "interpreter.h"
@@ -74,6 +80,16 @@ bool numericallyEqual(const std::string& expectedText, const std::string& actual
   return valuesEqual(e, a);
 }
 
+// Shows the first differing line of a failed golden.
+void printFirstDiff(const std::string& expected, const std::string& actual) {
+  size_t i = 0;
+  while (i < expected.size() && i < actual.size() && expected[i] == actual[i]) i++;
+  const size_t ls = expected.rfind('\n', i) == std::string::npos ? 0 : expected.rfind('\n', i) + 1;
+  std::printf("    expected: %s\n", expected.substr(ls, expected.find('\n', ls) - ls).c_str());
+  const size_t la = actual.rfind('\n', i) == std::string::npos ? 0 : actual.rfind('\n', i) + 1;
+  std::printf("    actual:   %s\n", actual.substr(la, actual.find('\n', la) - la).c_str());
+}
+
 bool buildStream(const fs::path& file, DrawList& list) {
   acstream::Stream st;
   std::string err;
@@ -104,6 +120,64 @@ bool buildSvg(const fs::path& file, DrawList& list) {
   if (!svg) return true;   // a hostile input: an empty draw list is the expected outcome
   drawSvg(list, *svg, fitW, fitH, hasTint ? &tint : nullptr);
   delete svg;
+  return true;
+}
+
+std::string jsonQuote(const std::string& s) {
+  std::string out = "\"";
+  for (const unsigned char c : s) {
+    switch (c) {
+      case '"': out += "\\\""; break;
+      case '\\': out += "\\\\"; break;
+      case '\n': out += "\\n"; break;
+      case '\r': out += "\\r"; break;
+      case '\t': out += "\\t"; break;
+      default:
+        if (c < 0x20 || c == 0x7f) { char b[8]; std::snprintf(b, sizeof b, "\\u%04x", c); out += b; }
+        else out += (char)c;
+    }
+  }
+  return out + "\"";
+}
+
+bool buildColors(const fs::path& dir, std::string& json) {
+  std::string text, err;
+  acjson::Value corpus;
+  if (!acstream::readFile((dir / "corpus.json").string(), text) || !acjson::parse(text, corpus, &err) || corpus.kind != acjson::Value::Object) {
+    std::fprintf(stderr, "  %s: %s\n", (dir / "corpus.json").string().c_str(), err.empty() ? "expected {group: [strings]}" : err.c_str());
+    return false;
+  }
+  std::vector<std::string> inputs;
+  for (const auto& group : corpus.obj)
+    for (const auto& v : group.second.arr) if (v.isString()) inputs.push_back(v.str);
+  std::vector<std::string> names;
+  size_t count = 0;
+  const css::NamedColor* table = css::namedColors(count);
+  for (size_t i = 0; i < count; i++) names.push_back(table[i].name);
+  names.push_back("transparent");
+  names.push_back("clear");
+  for (const auto& name : names) {
+    std::string upper = name;
+    for (char& ch : upper) if (ch >= 'a' && ch <= 'z') ch = (char)(ch - 'a' + 'A');
+    inputs.push_back(name);
+    inputs.push_back(upper);
+  }
+  json = "{\"names\":[";
+  for (size_t i = 0; i < names.size(); i++) json += (i ? "," : "") + jsonQuote(names[i]);
+  json += "],\n\"cases\":[\n";
+  for (size_t i = 0; i < inputs.size(); i++) {
+    css::Rgba c;
+    json += "{\"in\":" + jsonQuote(inputs[i]);
+    if (css::parseColor(inputs[i].c_str(), c)) {
+      char hex[16];
+      std::snprintf(hex, sizeof hex, "#%08x", (unsigned)css::toRGBA8(c));
+      json += ",\"rgba8\":\"" + std::string(hex) + "\",\"rgba\":[" + formatFloat(c.r) + "," + formatFloat(c.g) + "," + formatFloat(c.b) + "," + formatFloat(c.a) + "]}";
+    } else {
+      json += ",\"rgba8\":null,\"rgba\":null}";
+    }
+    json += i + 1 < inputs.size() ? ",\n" : "\n";
+  }
+  json += "]}\n";
   return true;
 }
 
@@ -154,19 +228,33 @@ int main(int argc, char** argv) {
     }
     if (expected != json) {
       std::printf("  FAIL %s\n", c.name.c_str());
-      // Show the first differing line.
-      size_t i = 0;
-      while (i < expected.size() && i < json.size() && expected[i] == json[i]) i++;
-      const size_t ls = expected.rfind('\n', i) == std::string::npos ? 0 : expected.rfind('\n', i) + 1;
-      std::printf("    expected: %s\n", expected.substr(ls, expected.find('\n', ls) - ls).c_str());
-      const size_t la = json.rfind('\n', i) == std::string::npos ? 0 : json.rfind('\n', i) + 1;
-      std::printf("    actual:   %s\n", json.substr(la, json.find('\n', la) - la).c_str());
+      printFirstDiff(expected, json);
       failed++;
       continue;
     }
     std::printf("  ok   %s\n", c.name.c_str());
   }
-  if (update) { std::printf("updated %zu goldens\n", cases.size()); return 0; }
-  std::printf("%zu goldens, %d failed\n", cases.size(), failed);
+
+  // The color golden (not under expected/: the TS tests read every expected/*.json as a draw list).
+  std::string colors;
+  if (!buildColors(root / "colors", colors)) return 1;
+  const fs::path colorsPath = root / "colors" / "expected.json";
+  if (update) {
+    writeText(colorsPath, colors);
+    std::printf("  wrote colors/%s\n", colorsPath.filename().string().c_str());
+  } else {
+    std::string expected;
+    if (!acstream::readFile(colorsPath.string(), expected)) { std::printf("  MISSING colors/%s (run --update)\n", colorsPath.filename().string().c_str()); failed++; }
+    else if (expected == colors) std::printf("  ok   colors\n");
+    else if (numericallyEqual(expected, colors)) std::printf("  ok~  colors (numerically equal, not byte-equal: goldens were written elsewhere)\n");
+    else {
+      std::printf("  FAIL colors\n");
+      printFirstDiff(expected, colors);
+      failed++;
+    }
+  }
+
+  if (update) { std::printf("updated %zu goldens\n", cases.size() + 1); return 0; }
+  std::printf("%zu goldens, %d failed\n", cases.size() + 1, failed);
   return failed ? 1 : 0;
 }

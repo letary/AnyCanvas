@@ -60,6 +60,17 @@ if(ANYCANVAS_BUILD_TESTS)
   target_link_libraries(anycanvas-unit PRIVATE anycanvas-internal)
   add_test(NAME unit COMMAND anycanvas-unit)
 
+  # The color header alone: only core/include (it needs nothing from core/src), warnings as errors
+  # (engines that include it by path build it under -Wall -Werror).
+  add_executable(anycanvas-css-color tests/core/css_color.cpp)
+  target_include_directories(anycanvas-css-color PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/core/include)
+  if(MSVC)
+    target_compile_options(anycanvas-css-color PRIVATE /W4 /WX)
+  else()
+    target_compile_options(anycanvas-css-color PRIVATE -Wall -Wextra -Werror)
+  endif()
+  add_test(NAME css_color COMMAND anycanvas-css-color)
+
   add_executable(anycanvas-golden tests/core/golden.cpp)
   target_link_libraries(anycanvas-golden PRIVATE anycanvas-internal)
   target_include_directories(anycanvas-golden PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tools)

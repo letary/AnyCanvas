@@ -2,15 +2,24 @@
 // never see a CSS string.
 #pragma once
 
+#include "anycanvas/css_color.h"
 #include "drawlist.h"
 
 namespace anycanvas {
 
-// #rgb #rgba #rrggbb #rrggbbaa · rgb()/rgba() with commas or spaces, numbers or percentages, an
-// alpha as a number or a percentage · hsl()/hsla() · the CSS named colors · transparent.
-// Case-insensitive, surrounding spaces ignored. False (and `out` untouched) for anything else — a
-// canvas keeps its previous style then, like the browser.
-bool parseCssColor(const char* s, Color& out);
+// A CSS color → a Color, through the one parser of anycanvas/css_color.h (its grammar: #rgb #rgba
+// #rrggbb #rrggbbaa · rgb()/rgba() · hsl()/hsla() · the CSS named colors · transparent · clear).
+// False (and `out` untouched) for anything else — a canvas keeps its previous style then, like the
+// browser.
+static inline bool parseCssColor(const char* s, Color& out) {
+  css::Rgba c;
+  if (!css::parseColor(s, c)) return false;
+  out.r = c.r;
+  out.g = c.g;
+  out.b = c.b;
+  out.a = c.a;
+  return true;
+}
 
 // `[italic|oblique] [normal|bold|bolder|lighter|100..900] <size>(px|pt|em|rem|%)[/line-height] <family>[, …]`.
 // The first family, unquoted; a missing family is "sans-serif", a missing size 10px (the Canvas2D

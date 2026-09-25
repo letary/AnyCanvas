@@ -211,6 +211,9 @@ void nsvgDelete(NSVGimage* image);
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
+/* ANYCANVAS: colors parse through the canvas core's CSS color parser (one grammar and one name table
+   for canvas and SVG). This makes the implementation part C++-only; core/src/svg.cpp is its one TU. */
+#include "anycanvas/css_color.h"
 
 #define NSVG_PI (3.14159265358979323846264338327f)
 #define NSVG_KAPPA90 (0.5522847493f)	// Length proportional to radius of a cubic bezier handle for 90deg arcs.
@@ -224,6 +227,14 @@ void nsvgDelete(NSVGimage* image);
 
 #define NSVG_NOTUSED(v) do { (void)(1 ? (void)0 : ( (void)(v) ) ); } while(0)
 #define NSVG_RGB(r, g, b) (((unsigned int)r) | ((unsigned int)g << 8) | ((unsigned int)b << 16))
+/* ANYCANVAS: an attribute color carries its own alpha in the top byte (#rgba, rgba(), hsla(),
+   transparent); a paint's alpha is that alpha times the *-opacity. For an opaque color this is
+   upstream's truncating (unsigned)(opacity*255) exactly, so opaque paints stay byte-equal. */
+#define NSVG_OPAQUE 0xff000000u
+static unsigned int nsvg__withOpacity(unsigned int c, float opacity)
+{
+	return (c & 0x00ffffffu) | ((unsigned int)(opacity * (float)(c >> 24)) << 24);
+}
 
 #ifdef _MSC_VER
 	#pragma warning (disable: 4996) // Switch off security warnings
@@ -674,8 +685,8 @@ static NSVGparser* nsvg__createParser(void)
 	// Init style
 	nsvg__xformIdentity(p->attr[0].xform);
 	memset(p->attr[0].id, 0, sizeof p->attr[0].id);
-	p->attr[0].fillColor = NSVG_RGB(0,0,0);
-	p->attr[0].strokeColor = NSVG_RGB(0,0,0);
+	p->attr[0].fillColor = NSVG_RGB(0,0,0) | NSVG_OPAQUE;		/* ANYCANVAS: the color's alpha */
+	p->attr[0].strokeColor = NSVG_RGB(0,0,0) | NSVG_OPAQUE;
 	p->attr[0].opacity = 1;
 	p->attr[0].fillOpacity = 1;
 	p->attr[0].strokeOpacity = 1;
@@ -1061,8 +1072,7 @@ static void nsvg__addShape(NSVGparser* p)
 		shape->fill.type = NSVG_PAINT_NONE;
 	} else if (attr->hasFill == 1) {
 		shape->fill.type = NSVG_PAINT_COLOR;
-		shape->fill.color = attr->fillColor;
-		shape->fill.color |= (unsigned int)(attr->fillOpacity*255) << 24;
+		shape->fill.color = nsvg__withOpacity(attr->fillColor, attr->fillOpacity);		/* ANYCANVAS */
 	} else if (attr->hasFill == 2) {
 		shape->fill.type = NSVG_PAINT_UNDEF;
 	}
@@ -1072,8 +1082,7 @@ static void nsvg__addShape(NSVGparser* p)
 		shape->stroke.type = NSVG_PAINT_NONE;
 	} else if (attr->hasStroke == 1) {
 		shape->stroke.type = NSVG_PAINT_COLOR;
-		shape->stroke.color = attr->strokeColor;
-		shape->stroke.color |= (unsigned int)(attr->strokeOpacity*255) << 24;
+		shape->stroke.color = nsvg__withOpacity(attr->strokeColor, attr->strokeOpacity);		/* ANYCANVAS */
 	} else if (attr->hasStroke == 2) {
 		shape->stroke.type = NSVG_PAINT_UNDEF;
 	}
@@ -1288,252 +1297,17 @@ static const char* nsvg__getNextPathItem(const char* s, char* it)
 	return s;
 }
 
-static unsigned int nsvg__parseColorHex(const char* str)
+/* ANYCANVAS: every color goes through the canvas core's CSS parser (anycanvas/css_color.h): the CSS
+   Color 4 names (case-insensitive), #rgb #rgba #rrggbb #rrggbbaa, rgb() rgba() hsl() hsla(),
+   transparent, clear. The color's alpha lands in the top byte (nsvg__withOpacity multiplies the
+   *-opacity into it). An invalid value returns 0 and the caller ignores the declaration, as a browser
+   does (upstream painted gray). Upstream's hex / rgb() parsers and its name table are deleted. */
+static int nsvg__parseColor(const char* str, unsigned int* out)
 {
-	unsigned int r=0, g=0, b=0;
-	if (sscanf(str, "#%2x%2x%2x", &r, &g, &b) == 3 )		// 2 digit hex
-		return NSVG_RGB(r, g, b);
-	if (sscanf(str, "#%1x%1x%1x", &r, &g, &b) == 3 )		// 1 digit hex, e.g. #abc -> 0xccbbaa
-		return NSVG_RGB(r*17, g*17, b*17);			// same effect as (r<<4|r), (g<<4|g), ..
-	return NSVG_RGB(128, 128, 128);
-}
-
-// Parse rgb color. The pointer 'str' must point at "rgb(" (4+ characters).
-// This function returns gray (rgb(128, 128, 128) == '#808080') on parse errors
-// for backwards compatibility. Note: other image viewers return black instead.
-
-static unsigned int nsvg__parseColorRGB(const char* str)
-{
-	int i;
-	unsigned int rgbi[3];
-	float rgbf[3];
-	// try decimal integers first
-	if (sscanf(str, "rgb(%u, %u, %u)", &rgbi[0], &rgbi[1], &rgbi[2]) != 3) {
-		// integers failed, try percent values (float, locale independent)
-		const char delimiter[3] = {',', ',', ')'};
-		str += 4; // skip "rgb("
-		for (i = 0; i < 3; i++) {
-			while (*str && (nsvg__isspace(*str))) str++; 	// skip leading spaces
-			if (*str == '+') str++;				// skip '+' (don't allow '-')
-			if (!*str) break;
-			rgbf[i] = nsvg__atof(str);
-
-			// Note 1: it would be great if nsvg__atof() returned how many
-			// bytes it consumed but it doesn't. We need to skip the number,
-			// the '%' character, spaces, and the delimiter ',' or ')'.
-
-			// Note 2: The following code does not allow values like "33.%",
-			// i.e. a decimal point w/o fractional part, but this is consistent
-			// with other image viewers, e.g. firefox, chrome, eog, gimp.
-
-			while (*str && nsvg__isdigit(*str)) str++;		// skip integer part
-			if (*str == '.') {
-				str++;
-				if (!nsvg__isdigit(*str)) break;		// error: no digit after '.'
-				while (*str && nsvg__isdigit(*str)) str++;	// skip fractional part
-			}
-			if (*str == '%') str++; else break;
-			while (*str && nsvg__isspace(*str)) str++;
-			if (*str == delimiter[i]) str++;
-			else break;
-		}
-		if (i == 3) {
-			rgbi[0] = roundf(rgbf[0] * 2.55f);
-			rgbi[1] = roundf(rgbf[1] * 2.55f);
-			rgbi[2] = roundf(rgbf[2] * 2.55f);
-		} else {
-			rgbi[0] = rgbi[1] = rgbi[2] = 128;
-		}
-	}
-	// clip values as the CSS spec requires
-	for (i = 0; i < 3; i++) {
-		if (rgbi[i] > 255) rgbi[i] = 255;
-	}
-	return NSVG_RGB(rgbi[0], rgbi[1], rgbi[2]);
-}
-
-typedef struct NSVGNamedColor {
-	const char* name;
-	unsigned int color;
-} NSVGNamedColor;
-
-NSVGNamedColor nsvg__colors[] = {
-
-	{ "red", NSVG_RGB(255, 0, 0) },
-	{ "green", NSVG_RGB( 0, 128, 0) },
-	{ "blue", NSVG_RGB( 0, 0, 255) },
-	{ "yellow", NSVG_RGB(255, 255, 0) },
-	{ "cyan", NSVG_RGB( 0, 255, 255) },
-	{ "magenta", NSVG_RGB(255, 0, 255) },
-	{ "black", NSVG_RGB( 0, 0, 0) },
-	{ "grey", NSVG_RGB(128, 128, 128) },
-	{ "gray", NSVG_RGB(128, 128, 128) },
-	{ "white", NSVG_RGB(255, 255, 255) },
-
-#ifdef NANOSVG_ALL_COLOR_KEYWORDS
-	{ "aliceblue", NSVG_RGB(240, 248, 255) },
-	{ "antiquewhite", NSVG_RGB(250, 235, 215) },
-	{ "aqua", NSVG_RGB( 0, 255, 255) },
-	{ "aquamarine", NSVG_RGB(127, 255, 212) },
-	{ "azure", NSVG_RGB(240, 255, 255) },
-	{ "beige", NSVG_RGB(245, 245, 220) },
-	{ "bisque", NSVG_RGB(255, 228, 196) },
-	{ "blanchedalmond", NSVG_RGB(255, 235, 205) },
-	{ "blueviolet", NSVG_RGB(138, 43, 226) },
-	{ "brown", NSVG_RGB(165, 42, 42) },
-	{ "burlywood", NSVG_RGB(222, 184, 135) },
-	{ "cadetblue", NSVG_RGB( 95, 158, 160) },
-	{ "chartreuse", NSVG_RGB(127, 255, 0) },
-	{ "chocolate", NSVG_RGB(210, 105, 30) },
-	{ "coral", NSVG_RGB(255, 127, 80) },
-	{ "cornflowerblue", NSVG_RGB(100, 149, 237) },
-	{ "cornsilk", NSVG_RGB(255, 248, 220) },
-	{ "crimson", NSVG_RGB(220, 20, 60) },
-	{ "darkblue", NSVG_RGB( 0, 0, 139) },
-	{ "darkcyan", NSVG_RGB( 0, 139, 139) },
-	{ "darkgoldenrod", NSVG_RGB(184, 134, 11) },
-	{ "darkgray", NSVG_RGB(169, 169, 169) },
-	{ "darkgreen", NSVG_RGB( 0, 100, 0) },
-	{ "darkgrey", NSVG_RGB(169, 169, 169) },
-	{ "darkkhaki", NSVG_RGB(189, 183, 107) },
-	{ "darkmagenta", NSVG_RGB(139, 0, 139) },
-	{ "darkolivegreen", NSVG_RGB( 85, 107, 47) },
-	{ "darkorange", NSVG_RGB(255, 140, 0) },
-	{ "darkorchid", NSVG_RGB(153, 50, 204) },
-	{ "darkred", NSVG_RGB(139, 0, 0) },
-	{ "darksalmon", NSVG_RGB(233, 150, 122) },
-	{ "darkseagreen", NSVG_RGB(143, 188, 143) },
-	{ "darkslateblue", NSVG_RGB( 72, 61, 139) },
-	{ "darkslategray", NSVG_RGB( 47, 79, 79) },
-	{ "darkslategrey", NSVG_RGB( 47, 79, 79) },
-	{ "darkturquoise", NSVG_RGB( 0, 206, 209) },
-	{ "darkviolet", NSVG_RGB(148, 0, 211) },
-	{ "deeppink", NSVG_RGB(255, 20, 147) },
-	{ "deepskyblue", NSVG_RGB( 0, 191, 255) },
-	{ "dimgray", NSVG_RGB(105, 105, 105) },
-	{ "dimgrey", NSVG_RGB(105, 105, 105) },
-	{ "dodgerblue", NSVG_RGB( 30, 144, 255) },
-	{ "firebrick", NSVG_RGB(178, 34, 34) },
-	{ "floralwhite", NSVG_RGB(255, 250, 240) },
-	{ "forestgreen", NSVG_RGB( 34, 139, 34) },
-	{ "fuchsia", NSVG_RGB(255, 0, 255) },
-	{ "gainsboro", NSVG_RGB(220, 220, 220) },
-	{ "ghostwhite", NSVG_RGB(248, 248, 255) },
-	{ "gold", NSVG_RGB(255, 215, 0) },
-	{ "goldenrod", NSVG_RGB(218, 165, 32) },
-	{ "greenyellow", NSVG_RGB(173, 255, 47) },
-	{ "honeydew", NSVG_RGB(240, 255, 240) },
-	{ "hotpink", NSVG_RGB(255, 105, 180) },
-	{ "indianred", NSVG_RGB(205, 92, 92) },
-	{ "indigo", NSVG_RGB( 75, 0, 130) },
-	{ "ivory", NSVG_RGB(255, 255, 240) },
-	{ "khaki", NSVG_RGB(240, 230, 140) },
-	{ "lavender", NSVG_RGB(230, 230, 250) },
-	{ "lavenderblush", NSVG_RGB(255, 240, 245) },
-	{ "lawngreen", NSVG_RGB(124, 252, 0) },
-	{ "lemonchiffon", NSVG_RGB(255, 250, 205) },
-	{ "lightblue", NSVG_RGB(173, 216, 230) },
-	{ "lightcoral", NSVG_RGB(240, 128, 128) },
-	{ "lightcyan", NSVG_RGB(224, 255, 255) },
-	{ "lightgoldenrodyellow", NSVG_RGB(250, 250, 210) },
-	{ "lightgray", NSVG_RGB(211, 211, 211) },
-	{ "lightgreen", NSVG_RGB(144, 238, 144) },
-	{ "lightgrey", NSVG_RGB(211, 211, 211) },
-	{ "lightpink", NSVG_RGB(255, 182, 193) },
-	{ "lightsalmon", NSVG_RGB(255, 160, 122) },
-	{ "lightseagreen", NSVG_RGB( 32, 178, 170) },
-	{ "lightskyblue", NSVG_RGB(135, 206, 250) },
-	{ "lightslategray", NSVG_RGB(119, 136, 153) },
-	{ "lightslategrey", NSVG_RGB(119, 136, 153) },
-	{ "lightsteelblue", NSVG_RGB(176, 196, 222) },
-	{ "lightyellow", NSVG_RGB(255, 255, 224) },
-	{ "lime", NSVG_RGB( 0, 255, 0) },
-	{ "limegreen", NSVG_RGB( 50, 205, 50) },
-	{ "linen", NSVG_RGB(250, 240, 230) },
-	{ "maroon", NSVG_RGB(128, 0, 0) },
-	{ "mediumaquamarine", NSVG_RGB(102, 205, 170) },
-	{ "mediumblue", NSVG_RGB( 0, 0, 205) },
-	{ "mediumorchid", NSVG_RGB(186, 85, 211) },
-	{ "mediumpurple", NSVG_RGB(147, 112, 219) },
-	{ "mediumseagreen", NSVG_RGB( 60, 179, 113) },
-	{ "mediumslateblue", NSVG_RGB(123, 104, 238) },
-	{ "mediumspringgreen", NSVG_RGB( 0, 250, 154) },
-	{ "mediumturquoise", NSVG_RGB( 72, 209, 204) },
-	{ "mediumvioletred", NSVG_RGB(199, 21, 133) },
-	{ "midnightblue", NSVG_RGB( 25, 25, 112) },
-	{ "mintcream", NSVG_RGB(245, 255, 250) },
-	{ "mistyrose", NSVG_RGB(255, 228, 225) },
-	{ "moccasin", NSVG_RGB(255, 228, 181) },
-	{ "navajowhite", NSVG_RGB(255, 222, 173) },
-	{ "navy", NSVG_RGB( 0, 0, 128) },
-	{ "oldlace", NSVG_RGB(253, 245, 230) },
-	{ "olive", NSVG_RGB(128, 128, 0) },
-	{ "olivedrab", NSVG_RGB(107, 142, 35) },
-	{ "orange", NSVG_RGB(255, 165, 0) },
-	{ "orangered", NSVG_RGB(255, 69, 0) },
-	{ "orchid", NSVG_RGB(218, 112, 214) },
-	{ "palegoldenrod", NSVG_RGB(238, 232, 170) },
-	{ "palegreen", NSVG_RGB(152, 251, 152) },
-	{ "paleturquoise", NSVG_RGB(175, 238, 238) },
-	{ "palevioletred", NSVG_RGB(219, 112, 147) },
-	{ "papayawhip", NSVG_RGB(255, 239, 213) },
-	{ "peachpuff", NSVG_RGB(255, 218, 185) },
-	{ "peru", NSVG_RGB(205, 133, 63) },
-	{ "pink", NSVG_RGB(255, 192, 203) },
-	{ "plum", NSVG_RGB(221, 160, 221) },
-	{ "powderblue", NSVG_RGB(176, 224, 230) },
-	{ "purple", NSVG_RGB(128, 0, 128) },
-	{ "rosybrown", NSVG_RGB(188, 143, 143) },
-	{ "royalblue", NSVG_RGB( 65, 105, 225) },
-	{ "saddlebrown", NSVG_RGB(139, 69, 19) },
-	{ "salmon", NSVG_RGB(250, 128, 114) },
-	{ "sandybrown", NSVG_RGB(244, 164, 96) },
-	{ "seagreen", NSVG_RGB( 46, 139, 87) },
-	{ "seashell", NSVG_RGB(255, 245, 238) },
-	{ "sienna", NSVG_RGB(160, 82, 45) },
-	{ "silver", NSVG_RGB(192, 192, 192) },
-	{ "skyblue", NSVG_RGB(135, 206, 235) },
-	{ "slateblue", NSVG_RGB(106, 90, 205) },
-	{ "slategray", NSVG_RGB(112, 128, 144) },
-	{ "slategrey", NSVG_RGB(112, 128, 144) },
-	{ "snow", NSVG_RGB(255, 250, 250) },
-	{ "springgreen", NSVG_RGB( 0, 255, 127) },
-	{ "steelblue", NSVG_RGB( 70, 130, 180) },
-	{ "tan", NSVG_RGB(210, 180, 140) },
-	{ "teal", NSVG_RGB( 0, 128, 128) },
-	{ "thistle", NSVG_RGB(216, 191, 216) },
-	{ "tomato", NSVG_RGB(255, 99, 71) },
-	{ "turquoise", NSVG_RGB( 64, 224, 208) },
-	{ "violet", NSVG_RGB(238, 130, 238) },
-	{ "wheat", NSVG_RGB(245, 222, 179) },
-	{ "whitesmoke", NSVG_RGB(245, 245, 245) },
-	{ "yellowgreen", NSVG_RGB(154, 205, 50) },
-#endif
-};
-
-static unsigned int nsvg__parseColorName(const char* str)
-{
-	int i, ncolors = sizeof(nsvg__colors) / sizeof(NSVGNamedColor);
-
-	for (i = 0; i < ncolors; i++) {
-		if (strcmp(nsvg__colors[i].name, str) == 0) {
-			return nsvg__colors[i].color;
-		}
-	}
-
-	return NSVG_RGB(128, 128, 128);
-}
-
-static unsigned int nsvg__parseColor(const char* str)
-{
-	size_t len = 0;
-	while(*str == ' ') ++str;
-	len = strlen(str);
-	if (len >= 1 && *str == '#')
-		return nsvg__parseColorHex(str);
-	else if (len >= 4 && str[0] == 'r' && str[1] == 'g' && str[2] == 'b' && str[3] == '(')
-		return nsvg__parseColorRGB(str);
-	return nsvg__parseColorName(str);
+	anycanvas::css::Rgba c;
+	if (!anycanvas::css::parseColor(str, c)) return 0;
+	*out = NSVG_RGB(anycanvas::css::toByte(c.r), anycanvas::css::toByte(c.g), anycanvas::css::toByte(c.b)) | (anycanvas::css::toByte(c.a) << 24);
+	return 1;
 }
 
 static float nsvg__parseOpacity(const char* str)
@@ -1959,9 +1733,8 @@ static int nsvg__parseAttr(NSVGparser* p, const char* name, const char* value)
 		} else if (strncmp(value, "url(", 4) == 0) {
 			attr->hasFill = 2;
 			nsvg__parseUrl(attr->fillGradient, value);
-		} else {
+		} else if (nsvg__parseColor(value, &attr->fillColor)) {		/* ANYCANVAS: an invalid color ignores the declaration */
 			attr->hasFill = 1;
-			attr->fillColor = nsvg__parseColor(value);
 		}
 	} else if (strcmp(name, "opacity") == 0) {
 		attr->opacity = nsvg__parseOpacity(value);
@@ -1973,9 +1746,8 @@ static int nsvg__parseAttr(NSVGparser* p, const char* name, const char* value)
 		} else if (strncmp(value, "url(", 4) == 0) {
 			attr->hasStroke = 2;
 			nsvg__parseUrl(attr->strokeGradient, value);
-		} else {
+		} else if (nsvg__parseColor(value, &attr->strokeColor)) {		/* ANYCANVAS: an invalid color ignores the declaration */
 			attr->hasStroke = 1;
-			attr->strokeColor = nsvg__parseColor(value);
 		}
 	} else if (strcmp(name, "stroke-width") == 0) {
 		attr->strokeWidth = nsvg__parseCoordinate(p, value, 0.0f, nsvg__actualLength(p));
@@ -2012,7 +1784,7 @@ static int nsvg__parseAttr(NSVGparser* p, const char* name, const char* value)
 		nsvg__parseTransform(xform, value);
 		nsvg__xformPremultiply(attr->xform, xform);
 	} else if (strcmp(name, "stop-color") == 0) {
-		attr->stopColor = nsvg__parseColor(value);
+		nsvg__parseColor(value, &attr->stopColor);		/* ANYCANVAS: an invalid color ignores the declaration */
 	} else if (strcmp(name, "stop-opacity") == 0) {
 		attr->stopOpacity = nsvg__parseOpacity(value);
 	} else if (strcmp(name, "offset") == 0) {
@@ -2904,7 +2676,7 @@ static void nsvg__parseGradientStop(NSVGparser* p, const char** attr)
 	int i, idx;
 
 	curAttr->stopOffset = 0;
-	curAttr->stopColor = 0;
+	curAttr->stopColor = NSVG_RGB(0,0,0) | NSVG_OPAQUE;		/* ANYCANVAS: the default stop-color, opaque black */
 	curAttr->stopOpacity = 1.0f;
 
 	for (i = 0; attr[i]; i += 2) {
@@ -2933,8 +2705,7 @@ static void nsvg__parseGradientStop(NSVGparser* p, const char** attr)
 	}
 
 	stop = &grad->stops[idx];
-	stop->color = curAttr->stopColor;
-	stop->color |= (unsigned int)(curAttr->stopOpacity*255) << 24;
+	stop->color = nsvg__withOpacity(curAttr->stopColor, curAttr->stopOpacity);		/* ANYCANVAS */
 	stop->offset = curAttr->stopOffset;
 }
 
@@ -3146,8 +2917,7 @@ static void nsvg__flushText(NSVGparser* p)
 		shape->fill.type = NSVG_PAINT_NONE;
 	} else if (attr->hasFill == 1) {
 		shape->fill.type = NSVG_PAINT_COLOR;
-		shape->fill.color = attr->fillColor;
-		shape->fill.color |= (unsigned int)(attr->fillOpacity*255) << 24;
+		shape->fill.color = nsvg__withOpacity(attr->fillColor, attr->fillOpacity);		/* ANYCANVAS */
 	} else if (attr->hasFill == 2) {
 		shape->fill.type = NSVG_PAINT_UNDEF;
 	}
@@ -3155,8 +2925,7 @@ static void nsvg__flushText(NSVGparser* p)
 		shape->stroke.type = NSVG_PAINT_NONE;
 	} else if (attr->hasStroke == 1) {
 		shape->stroke.type = NSVG_PAINT_COLOR;
-		shape->stroke.color = attr->strokeColor;
-		shape->stroke.color |= (unsigned int)(attr->strokeOpacity*255) << 24;
+		shape->stroke.color = nsvg__withOpacity(attr->strokeColor, attr->strokeOpacity);		/* ANYCANVAS */
 	} else if (attr->hasStroke == 2) {
 		shape->stroke.type = NSVG_PAINT_UNDEF;
 	}

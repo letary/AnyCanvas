@@ -1,6 +1,5 @@
 #define NANOSVG_CPLUSPLUS
 #define NANOSVG_IMPLEMENTATION
-#define NANOSVG_ALL_COLOR_KEYWORDS
 #include "nanosvg/nanosvg.h"
 
 #include "svg.h"

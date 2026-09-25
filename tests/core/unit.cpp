@@ -50,6 +50,67 @@ static void testColors() {
   CHECK(!parseCssColor("nonsense", c));
   CHECK(!parseCssColor("", c));
   CHECK(!parseCssColor("rgb(1,2)", c));
+  // The wrapper over anycanvas/css_color.h (its own test: css_color.cpp, the bits: tests/golden/colors).
+  CHECK(parseCssColor("clear", c) && c.r == 0 && c.g == 0 && c.b == 0 && c.a == 0);
+  CHECK(parseCssColor("green", c) && c.r == 0 && std::fabs(c.g - 128 / 255.0f) < 1e-6f && c.a == 1);
+  c = Color{ 0.5f, 0.5f, 0.5f, 0.5f };
+  CHECK(!parseCssColor("rgb(nan, 0, 0)", c) && c.r == 0.5f && c.a == 0.5f);   // untouched
+  CHECK(!parseCssColor(nullptr, c));
+}
+
+// The fill colors of an SVG's FILL_PATH commands, in order (straight RGBA, alpha = the color's alpha).
+static std::vector<Color> svgFills(const char* markup) {
+  std::vector<Color> out;
+  Svg* svg = parseSvg(markup, std::strlen(markup));
+  if (!svg) return out;
+  DrawList l;
+  drawSvg(l, *svg, 0, 0, nullptr);
+  delete svg;
+  std::vector<const char*> ptrs;
+  for (const auto& s : l.strings) ptrs.push_back(s.c_str());
+  DrawReader r(l.words.data(), (int32_t)l.words.size(), ptrs.data(), (int32_t)ptrs.size());
+  int32_t cmd = 0, end = 0;
+  while (r.next(cmd, end)) {
+    if (cmd == (int32_t)Draw::FILL_PATH) {
+      r.f();   // the rule
+      const PaintData p = r.paint();
+      out.push_back(p.kind == Paint::COLOR ? p.color : p.stops.empty() ? Color{} : p.stops[0].color);
+    }
+    r.seek(end);
+  }
+  return out;
+}
+
+static bool near(const Color& c, float r, float g, float b, float a) {
+  return std::fabs(c.r - r) < 1e-6f && std::fabs(c.g - g) < 1e-6f && std::fabs(c.b - b) < 1e-6f && std::fabs(c.a - a) < 1e-6f;
+}
+
+// SVG colors go through the canvas parser (the nanosvg ANYCANVAS patch): CSS names in any case, hsl(),
+// the color's own alpha (rgba, #rrggbbaa, transparent) times the *-opacity, and an invalid value
+// ignores the declaration (the inherited paint stays) instead of painting gray.
+static void testSvgColors() {
+  const std::vector<Color> f = svgFills(
+    "<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10'>"
+    "<defs><linearGradient id='g'><stop offset='0' stop-color='RebeccaPurple'/><stop offset='1'/></linearGradient></defs>"
+    "<rect width='1' height='1' fill='transparent'/>"
+    "<rect width='1' height='1' fill='rgba(255,0,0,.5)'/>"
+    "<rect width='1' height='1' fill='hsl(120,100%,50%)'/>"
+    "<rect width='1' height='1' fill='bogus'/>"
+    "<g fill='#00f'><rect width='1' height='1' fill='currentColor'/></g>"
+    "<rect width='1' height='1' fill='#ff000080' fill-opacity='0.5'/>"
+    "<rect width='1' height='1' fill='Red' fill-opacity='0.5'/>"
+    "<rect width='1' height='1' fill='url(#g)'/>"
+    "</svg>");
+  CHECK(f.size() == 8);
+  if (f.size() != 8) return;
+  CHECK(near(f[0], 0, 0, 0, 0));                        // transparent: alpha 0 (was gray)
+  CHECK(near(f[1], 1, 0, 0, 128 / 255.0f));             // rgba(): its alpha
+  CHECK(near(f[2], 0, 1, 0, 1));                        // hsl() (was gray)
+  CHECK(near(f[3], 0, 0, 0, 1));                        // invalid: the default black stays (was gray)
+  CHECK(near(f[4], 0, 0, 1, 1));                        // currentColor (unsupported): the group's fill stays
+  CHECK(near(f[5], 1, 0, 0, 64 / 255.0f));              // 0x80 × 0.5, truncated like upstream
+  CHECK(near(f[6], 1, 0, 0, 127 / 255.0f));             // opaque × 0.5 = upstream's (unsigned)(0.5 * 255)
+  CHECK(near(f[7], 0x66 / 255.0f, 0x33 / 255.0f, 0x99 / 255.0f, 1));   // a stop color by a CSS 4 name
 }
 
 static void testFonts() {
@@ -375,6 +436,7 @@ int main() {
   testHostileStreams();
   testReaderRoundTrip();
   testSvg();
+  testSvgColors();
   testSvgText();
   testEncodeAndApi();
   std::printf("%d checks, %d failed\n", g_checks, g_failed);

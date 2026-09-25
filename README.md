@@ -26,6 +26,7 @@ SVG through the same core — nanosvg's shapes and gradients, plus `<text>` draw
 |---|---|
 | **opcode stream** | what a recorder writes: `Float32Array` + strings, the Canvas2D model (state, transforms, paths, fill / stroke / clip, text, images) plus gradients, dashes, fill rule, letter spacing. Defined in [spec/ops.h](spec/ops.h). |
 | **core** | C++17, no platform code: interprets the stream, parses SVG (nanosvg, extended with `<text>`), resolves CSS colors and fonts, turns arcs into cubics, normalizes gradients. C API in [anycanvas.h](core/include/anycanvas/anycanvas.h). Runs native, as wasm, behind JNI. |
+| **CSS colors** | ONE parser for canvas styles and SVG: [css_color.h](core/include/anycanvas/css_color.h), header-only C++17 (other engines include it by path, no linking) — hex 3/4/6/8, `rgb()` / `hsl()` in comma or space syntax, the 148 CSS Color 4 names, `transparent`, and `clear` (the one non-CSS alias). Its TypeScript twin is `parseCssColor` in `anycanvas-recorder`; `tests/golden/colors` holds the two bit-equal. |
 | **draw list** | what the core emits: ten commands with everything resolved — absolute transforms, RGBA, `(family size weight italic)`, path verbs, alpha on the paint. Defined in [spec/draw.h](spec/draw.h). |
 | **painter** | a loop with one case per command on Canvas2D, `android.graphics`, tgfx or CoreGraphics. Fonts, shaping and image decoding are the platform's, through a few hooks. |
 
@@ -69,7 +70,8 @@ painters/android/  Kotlin painter + JNI binding, a Gradle library; demo/ = the o
 painters/tgfx/     C++ painter sources, compiled by the including build
 painters/apple/    Swift painter over CoreGraphics — later, on the Mac
 tools/acdump       draw lists and reference PNGs from the command line
-tests/             ctest (unit + golden), bun (recorder, reader, painter), golden/ (the corpus)
+tests/             ctest (unit + css_color + golden), bun (recorder, reader, painter, color twin),
+                   golden/ (the corpus; golden/colors: the color corpus + the C++ parser's answers)
 docs/images/       this README's pictures; `bun tests/ts/readme-images.ts` regenerates them from the goldens
 ```
 
@@ -97,6 +99,9 @@ float trig differs in the last digits between libms.
   `<text>` / `<tspan>` with anchor, baseline and letter-spacing. A `<tspan>` without a position
   merges into its run (no metrics in the core). No `textPath`, filters, masks, patterns or CSS
   beyond class selectors.
+- SVG colors use the canvas grammar (a color's own alpha times the `*-opacity`); an invalid color
+  ignores the declaration, as in a browser; `currentColor` is not supported (the inherited paint
+  stays).
 
 ## Status
 

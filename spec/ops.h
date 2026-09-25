@@ -29,7 +29,7 @@
   X(RESET_TRANSFORM, 7,  "",         "",   "CTM = identity") \
   /* styles */ \
   X(GLOBAL_ALPHA,    8,  "f",        "",   "0..1, multiplies every later paint") \
-  X(FILL_STYLE,      9,  "r",        "",   "a CSS color (#rgb #rgba #rrggbb #rrggbbaa rgb() rgba() hsl() hsla() names transparent)") \
+  X(FILL_STYLE,      9,  "r",        "",   "a CSS color (#rgb #rgba #rrggbb #rrggbbaa rgb() rgba() hsl() hsla() the CSS names transparent clear)") \
   X(STROKE_STYLE,    10, "r",        "",   "a CSS color") \
   X(FILL_GRADIENT,   11, "iffffffi", "fr", "kind x0 y0 x1 y1 r0 r1 nstops (offset color)*: LINEAR uses x0 y0 x1 y1; RADIAL = createRadialGradient(x0 y0 r0 x1 y1 r1)") \
   X(STROKE_GRADIENT, 12, "iffffffi", "fr", "same layout as FILL_GRADIENT") \
