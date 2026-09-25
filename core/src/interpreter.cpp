@@ -186,8 +186,8 @@ class Interpreter {
       case Op::TEXT_BASELINE: { const int32_t v = (int32_t)a[0]; if (v >= 0 && v <= 5) st_.baseline = (TextBaseline)v; break; }
       case Op::LETTER_SPACING: if (std::isfinite(a[0])) st_.letterSpacing = a[0]; break;
 
-      case Op::BEGIN_PATH: beginPath(); break;
-      case Op::CLOSE_PATH: path_.close(); break;
+      case Op::PATH_BEGIN: beginPath(); break;
+      case Op::PATH_CLOSE: path_.close(); break;
       case Op::MOVE_TO: { Path p; p.moveTo(a[0], a[1]); addUserPath(p); break; }
       case Op::LINE_TO: {
         Path p; float cx, cy;

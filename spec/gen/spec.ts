@@ -111,8 +111,8 @@ export const OP = {
   TEXT_ALIGN: 20,
   TEXT_BASELINE: 21,
   LETTER_SPACING: 22,
-  BEGIN_PATH: 23,
-  CLOSE_PATH: 24,
+  PATH_BEGIN: 23,
+  PATH_CLOSE: 24,
   MOVE_TO: 25,
   LINE_TO: 26,
   QUADRATIC_TO: 27,
@@ -180,7 +180,7 @@ export const OP_ARGS: Record<number, { args: string, repeat: string }> = {
   41: { args: "rfff", repeat: "" },
   42: { args: "iffffffff", repeat: "" },
 }
-export const OP_NAME: readonly string[] = ["save", "restore", "translate", "scale", "rotate", "transform", "setTransform", "resetTransform", "globalAlpha", "fillStyle", "strokeStyle", "fillGradient", "strokeGradient", "lineWidth", "lineJoin", "lineCap", "miterLimit", "lineDash", "lineDashOffset", "font", "textAlign", "textBaseline", "letterSpacing", "beginPath", "closePath", "moveTo", "lineTo", "quadraticTo", "bezierTo", "arc", "arcTo", "ellipse", "rect", "roundRect", "fill", "stroke", "clip", "fillRect", "strokeRect", "clearRect", "fillText", "strokeText", "drawImage"]
+export const OP_NAME: readonly string[] = ["save", "restore", "translate", "scale", "rotate", "transform", "setTransform", "resetTransform", "globalAlpha", "fillStyle", "strokeStyle", "fillGradient", "strokeGradient", "lineWidth", "lineJoin", "lineCap", "miterLimit", "lineDash", "lineDashOffset", "font", "textAlign", "textBaseline", "letterSpacing", "pathBegin", "pathClose", "moveTo", "lineTo", "quadraticTo", "bezierTo", "arc", "arcTo", "ellipse", "rect", "roundRect", "fill", "stroke", "clip", "fillRect", "strokeRect", "clearRect", "fillText", "strokeText", "drawImage"]
 
 /** The draw list: command id → the word after it. */
 export const DRAW = {

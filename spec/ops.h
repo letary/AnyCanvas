@@ -44,8 +44,8 @@
   X(TEXT_BASELINE,   21, "i",        "",   "TextBaseline") \
   X(LETTER_SPACING,  22, "f",        "",   "px, added after every glyph") \
   /* path building (user space at the time of the call, like Canvas2D) */ \
-  X(BEGIN_PATH,      23, "",         "",   "") \
-  X(CLOSE_PATH,      24, "",         "",   "") \
+  X(PATH_BEGIN,      23, "",         "",   "beginPath (named PATH_* because wingdi.h defines BEGIN_PATH)") \
+  X(PATH_CLOSE,      24, "",         "",   "") \
   X(MOVE_TO,         25, "ff",       "",   "x y") \
   X(LINE_TO,         26, "ff",       "",   "x y") \
   X(QUADRATIC_TO,    27, "ffff",     "",   "cx cy x y") \

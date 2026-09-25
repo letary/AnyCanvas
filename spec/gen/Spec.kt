@@ -142,8 +142,8 @@ object Op {
     const val TEXT_ALIGN = 20
     const val TEXT_BASELINE = 21
     const val LETTER_SPACING = 22
-    const val BEGIN_PATH = 23
-    const val CLOSE_PATH = 24
+    const val PATH_BEGIN = 23
+    const val PATH_CLOSE = 24
     const val MOVE_TO = 25
     const val LINE_TO = 26
     const val QUADRATIC_TO = 27

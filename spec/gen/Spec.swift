@@ -91,8 +91,8 @@ public enum Op: Int32 {
     case textAlign = 20
     case textBaseline = 21
     case letterSpacing = 22
-    case beginPath = 23
-    case closePath = 24
+    case pathBegin = 23
+    case pathClose = 24
     case moveTo = 25
     case lineTo = 26
     case quadraticTo = 27

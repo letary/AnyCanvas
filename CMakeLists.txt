@@ -41,6 +41,10 @@ endif()
 add_library(anycanvas-internal INTERFACE)
 target_include_directories(anycanvas-internal INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/core/src ${CMAKE_CURRENT_SOURCE_DIR}/core/vendor)
 target_link_libraries(anycanvas-internal INTERFACE anycanvas)
+if(MSVC)
+  # The internals' X-macro enum names need the conformant preprocessor in every consumer too.
+  target_compile_options(anycanvas-internal INTERFACE /Zc:preprocessor)
+endif()
 
 # ---- tools ----------------------------------------------------------------------------------------
 if(ANYCANVAS_BUILD_TOOLS)

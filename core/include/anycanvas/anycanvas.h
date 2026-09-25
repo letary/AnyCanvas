@@ -54,6 +54,17 @@ AC_API void ac_svg_free(ac_svg* svg);
 // replaces every color with tint (RGBA 0..1); shape opacity still applies.
 AC_API void ac_svg_draw(ac_context* ctx, const ac_svg* svg, float w, float h, int hasTint, const float* tintRGBA, ac_drawlist* out);
 
+// ---- fonts ------------------------------------------------------------------------------------------
+// A CSS font shorthand resolved the way the interpreter resolves it for a text command, so a host's
+// measureText sees the same (family, size, weight, italic) as its painter.
+typedef struct ac_font {
+  char family[64];
+  float size;        /* px */
+  int32_t weight;    /* 100..900 */
+  int32_t italic;    /* 0 / 1 */
+} ac_font;
+AC_API void ac_font_parse(const char* css, ac_font* out);
+
 // ---- the draw list ----------------------------------------------------------------------------------
 // The deterministic JSON text of a draw list (tests, debugging, hashing). Malloc'd; ac_free.
 AC_API char* ac_drawlist_json(const ac_drawlist* list);

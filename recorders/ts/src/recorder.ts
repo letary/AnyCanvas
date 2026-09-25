@@ -29,8 +29,10 @@ const RULE: Record<FillRuleName, number> = { nonzero: FillRule.NONZERO, evenodd:
 /** A gradient built by createLinearGradient / createRadialGradient; assign it to fillStyle / strokeStyle. */
 export class Gradient {
   readonly stops: { offset: number, color: string }[] = []
+  readonly kind: number
+  readonly coords: [number, number, number, number, number, number]
   /** @internal */
-  constructor(readonly kind: number, readonly coords: [number, number, number, number, number, number]) {}
+  constructor(kind: number, coords: [number, number, number, number, number, number]) { this.kind = kind; this.coords = coords }
   addColorStop(offset: number, color: string): this {
     if (!(offset >= 0 && offset <= 1)) throw new RangeError(`gradient stop offset ${offset} is outside 0..1`)
     this.stops.push({ offset, color })
@@ -151,8 +153,8 @@ export class Recorder {
 
   // ---- paths ----------------------------------------------------------------------------------
 
-  beginPath(): this { return this.push(OP.BEGIN_PATH) }
-  closePath(): this { return this.push(OP.CLOSE_PATH) }
+  beginPath(): this { return this.push(OP.PATH_BEGIN) }
+  closePath(): this { return this.push(OP.PATH_CLOSE) }
   moveTo(x: number, y: number): this { return this.push(OP.MOVE_TO, x, y) }
   lineTo(x: number, y: number): this { return this.push(OP.LINE_TO, x, y) }
   quadraticCurveTo(cx: number, cy: number, x: number, y: number): this { return this.push(OP.QUADRATIC_TO, cx, cy, x, y) }

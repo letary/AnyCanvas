@@ -126,7 +126,7 @@ static void testInterpreterBasics() {
   CHECK(l.toJson().find("\"alpha\":0.5") != std::string::npos);
 
   // An empty path draws nothing; an empty text draws nothing.
-  l = run({ (float)Op::BEGIN_PATH, (float)Op::FILL, 0, (float)Op::FILL_TEXT, 0, 1, 1, 0 }, { "" });
+  l = run({ (float)Op::PATH_BEGIN, (float)Op::FILL, 0, (float)Op::FILL_TEXT, 0, 1, 1, 0 }, { "" });
   CHECK(l.words.empty());
 }
 
@@ -139,13 +139,13 @@ static void testInterpreterTransforms() {
   CHECK(json.find("\"matrix\":[1,0,0,1,10,0]") != std::string::npos);
 
   // A path built before a scale and filled after it: the fill carries the new transform and the path is mapped back.
-  l = run({ (float)Op::BEGIN_PATH, (float)Op::RECT, 0, 0, 10, 10, (float)Op::SCALE, 2, 2, (float)Op::FILL, 0 });
+  l = run({ (float)Op::PATH_BEGIN, (float)Op::RECT, 0, 0, 10, 10, (float)Op::SCALE, 2, 2, (float)Op::FILL, 0 });
   json = l.toJson();
   CHECK(json.find("\"matrix\":[2,0,0,2,0,0]") != std::string::npos);
   CHECK(json.find("[\"M\",0,0],[\"L\",5,0],[\"L\",5,5],[\"L\",0,5],[\"Z\"]") != std::string::npos);
 
   // A singular transform draws nothing (and does not crash).
-  l = run({ (float)Op::SCALE, 0, 0, (float)Op::BEGIN_PATH, (float)Op::RECT, 0, 0, 10, 10, (float)Op::FILL, 0 });
+  l = run({ (float)Op::SCALE, 0, 0, (float)Op::PATH_BEGIN, (float)Op::RECT, 0, 0, 10, 10, (float)Op::FILL, 0 });
   CHECK(countCmd(l, Draw::FILL_PATH) == 0);
 
   // Unbalanced saves are closed for the painter.
@@ -160,7 +160,7 @@ static void testInterpreterGradientsAndDash() {
   // A linear gradient with two stops; an odd dash list doubles.
   DrawList l = run({ (float)Op::FILL_GRADIENT, 0, 0, 0, 100, 0, 0, 0, 2, 0, 0, 1, 1,
                      (float)Op::LINE_DASH, 3, 1, 2, 3, (float)Op::FILL_RECT, 0, 0, 1, 1,
-                     (float)Op::BEGIN_PATH, (float)Op::MOVE_TO, 0, 0, (float)Op::LINE_TO, 5, 5, (float)Op::STROKE },
+                     (float)Op::PATH_BEGIN, (float)Op::MOVE_TO, 0, 0, (float)Op::LINE_TO, 5, 5, (float)Op::STROKE },
                    { "#000", "#fff" });
   std::string json = l.toJson();
   CHECK(json.find("\"kind\":\"linear\"") != std::string::npos);
@@ -358,6 +358,9 @@ static void testEncodeAndApi() {
   char* json = ac_drawlist_json(&list);
   CHECK(json && std::strstr(json, "fillPath"));
   ac_free(json);
+  ac_font font;
+  ac_font_parse("italic 700 18px \"Roboto Mono\", monospace", &font);
+  CHECK(std::string(font.family) == "Roboto Mono" && font.size == 18 && font.weight == 700 && font.italic == 1);
   ac_context_destroy(ctx);
 }
 

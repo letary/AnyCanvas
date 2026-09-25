@@ -1,5 +1,6 @@
 #include "anycanvas/anycanvas.h"
 
+#include "css.h"
 #include "drawlist.h"
 #include "encode.h"
 #include "interpreter.h"
@@ -79,6 +80,16 @@ void ac_svg_draw(ac_context* ctx, const ac_svg* svg, float w, float h, int hasTi
     drawSvg(ctx->list, *svg->svg, w, h, hasTint && tintRGBA ? &tint : nullptr);
   }
   ctx->expose(out);
+}
+
+void ac_font_parse(const char* css, ac_font* out) {
+  if (!out) return;
+  const FontData f = parseCssFont(css ? css : "");
+  std::strncpy(out->family, f.family.c_str(), sizeof(out->family) - 1);
+  out->family[sizeof(out->family) - 1] = '\0';
+  out->size = f.size;
+  out->weight = f.weight;
+  out->italic = f.italic ? 1 : 0;
 }
 
 char* ac_drawlist_json(const ac_drawlist* list) {
