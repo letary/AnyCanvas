@@ -13,3 +13,4 @@ dependencyResolutionManagement {
 }
 rootProject.name = "anycanvas-android"
 include(":anycanvas")
+include(":demo")

@@ -32,7 +32,9 @@ target_include_directories(anycanvas
 if(MSVC)
   target_compile_options(anycanvas PRIVATE /W3)
 else()
-  target_compile_options(anycanvas PRIVATE -Wall -Wextra -Wno-unused-parameter)
+  # No FMA contraction: keeps the draw lists closer across compilers (libm still differs; the
+  # golden test compares numerically across platforms, byte-exact on the platform that wrote them).
+  target_compile_options(anycanvas PRIVATE -Wall -Wextra -Wno-unused-parameter -ffp-contract=off)
 endif()
 
 # A consumer that wants the C++ internals (a C++ painter, the tools) links `anycanvas-internal`.

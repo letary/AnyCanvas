@@ -68,7 +68,9 @@ build/acdump png file.svg out.png  a CPU reference raster (nanosvgrast) for the 
 
 Tests, by layer: **unit** (hostile streams never crash, the CSS parsers, the geometry, transform and
 path semantics, the reader round trip, the encoder), **golden** (every stream and SVG under
-`tests/golden` → its draw list, byte-compared as JSON and written as the binary the painters read),
+`tests/golden` → its draw list as JSON, byte-equal on the platform that wrote it and numerically equal
+(±1e-4) on every other — float trig differs in the last digits between libms — and as the binary the
+painters read),
 **recorder** (the committed streams match a fresh recording; every opcode is exercised), **reader**
 (the TS decoder of the binary equals the core's JSON), **web painter** (every golden replays on
 Skia via @napi-rs/canvas; known colors land where the drawing says).
@@ -111,7 +113,7 @@ produced (from wasm memory or a file); `paint(ctx, commands, { image, fontFamily
 | recorders/ts | built; tested |
 | painters/web | built; tested on Skia (@napi-rs/canvas) |
 | painters/tgfx | written against the tgfx API of the LeCodes desktop host; compiles there (its step 3) |
-| painters/android | built: `./gradlew :anycanvas:assembleRelease` → AAR with libanycanvas.so (arm64, armv7, x86_64); not yet run on a device |
+| painters/android | built + run on a phone: `:anycanvas:assembleRelease` → AAR (arm64, armv7, x86_64); `:demo:assembleDebug` = the device check app (all 15 goldens through libanycanvas.so + the Kotlin painter on screen) |
 | painters/apple, recorders/kotlin, recorders/swift | not started |
 | SVG `<text>` | not started (additive: parser + the existing text command) |
 

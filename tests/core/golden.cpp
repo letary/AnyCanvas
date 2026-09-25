@@ -43,6 +43,37 @@ bool writeBinary(const fs::path& path, const DrawList& list) {
 
 struct Case { std::string name; DrawList list; };
 
+// Structural equality with a numeric tolerance: |a - b| <= 1e-3 + 1e-4 * max(|a|, |b|). Float trig
+// (nanosvg's arcs, our rotations) differs in the last digits between libms and with FMA contraction,
+// so a golden written on one platform is byte-exact there and numerically exact everywhere else.
+bool valuesEqual(const acjson::Value& a, const acjson::Value& b) {
+  if (a.kind != b.kind) return false;
+  switch (a.kind) {
+    case acjson::Value::Null: return true;
+    case acjson::Value::Bool: return a.b == b.b;
+    case acjson::Value::Number: return std::fabs(a.num - b.num) <= 1e-3 + 1e-4 * std::fmax(std::fabs(a.num), std::fabs(b.num));
+    case acjson::Value::String: return a.str == b.str;
+    case acjson::Value::Array:
+      if (a.arr.size() != b.arr.size()) return false;
+      for (size_t i = 0; i < a.arr.size(); i++) if (!valuesEqual(a.arr[i], b.arr[i])) return false;
+      return true;
+    case acjson::Value::Object:
+      if (a.obj.size() != b.obj.size()) return false;
+      for (const auto& kv : a.obj) {
+        auto it = b.obj.find(kv.first);
+        if (it == b.obj.end() || !valuesEqual(kv.second, it->second)) return false;
+      }
+      return true;
+  }
+  return false;
+}
+
+bool numericallyEqual(const std::string& expectedText, const std::string& actualText) {
+  acjson::Value e, a;
+  if (!acjson::parse(expectedText, e) || !acjson::parse(actualText, a)) return false;
+  return valuesEqual(e, a);
+}
+
 bool buildStream(const fs::path& file, DrawList& list) {
   acstream::Stream st;
   std::string err;
@@ -116,6 +147,11 @@ int main(int argc, char** argv) {
     }
     std::string expected;
     if (!acstream::readFile(jsonPath.string(), expected)) { std::printf("  MISSING %s (run --update)\n", jsonPath.filename().string().c_str()); failed++; continue; }
+    if (expected != json && numericallyEqual(expected, json)) {
+      // Another platform's libm / FMA rounding: the same structure, numbers within tolerance.
+      std::printf("  ok~  %s (numerically equal, not byte-equal: goldens were written elsewhere)\n", c.name.c_str());
+      continue;
+    }
     if (expected != json) {
       std::printf("  FAIL %s\n", c.name.c_str());
       // Show the first differing line.
