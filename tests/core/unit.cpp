@@ -168,6 +168,13 @@ static void testInterpreterGradientsAndDash() {
   CHECK(json.find("\"stops\":[{\"offset\":0,\"color\":[0,0,0,1]},{\"offset\":1,\"color\":[1,1,1,1]}]") != std::string::npos);
   CHECK(json.find("\"dash\":[1,2,3,1,2,3]") != std::string::npos);
 
+  // Transparent stops take their neighbour's RGB (premultiplied-equivalent interpolation everywhere);
+  // one between two different colors splits into two coincident stops.
+  l = run({ (float)Op::FILL_GRADIENT, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 1, 1, (float)Op::FILL_RECT, 0, 0, 1, 1 }, { "yellow", "transparent" });
+  CHECK(l.toJson().find("\"stops\":[{\"offset\":0,\"color\":[1,1,0,1]},{\"offset\":1,\"color\":[1,1,0,0]}]") != std::string::npos);
+  l = run({ (float)Op::FILL_GRADIENT, 0, 0, 0, 1, 0, 0, 0, 3, 0, 0, 0.5f, 1, 1, 2, (float)Op::FILL_RECT, 0, 0, 1, 1 }, { "red", "transparent", "blue" });
+  CHECK(l.toJson().find("\"stops\":[{\"offset\":0,\"color\":[1,0,0,1]},{\"offset\":0.5,\"color\":[1,0,0,0]},{\"offset\":0.5,\"color\":[0,0,1,0]},{\"offset\":1,\"color\":[0,0,1,1]}]") != std::string::npos);
+
   // One stop collapses to a color; unsorted stops sort.
   l = run({ (float)Op::FILL_GRADIENT, 0, 0, 0, 1, 0, 0, 0, 1, 0.5f, 0, (float)Op::FILL_RECT, 0, 0, 1, 1 }, { "#00f" });
   CHECK(l.toJson().find("\"kind\":\"color\",\"alpha\":1,\"color\":[0,0,1,1]") != std::string::npos);

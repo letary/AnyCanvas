@@ -90,7 +90,9 @@ float trig differs in the last digits between libms.
 
 - Text is drawn by the platform: identical draw lists, different pixels.
 - Canvas2D gradients only pad; Android's radial gradient is concentric (no focal point);
-  `letterSpacing` on the web needs Chrome 99+ / Safari 17+.
+  `letterSpacing` on the web needs Chrome 99+ / Safari 17+. Gradient stops with alpha 0 take their
+  neighbour's RGB in the core, so straight-alpha interpolators (Skia, tgfx) fade like the browser's
+  premultiplied one; stops with partial alpha still differ slightly between the two.
 - SVG is nanosvg's model plus text: shapes, gradients, dashes, transforms, opacity, a tint override,
   `<text>` / `<tspan>` with anchor, baseline and letter-spacing. A `<tspan>` without a position
   merges into its run (no metrics in the core). No `textPath`, filters, masks, patterns or CSS

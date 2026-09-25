@@ -80,6 +80,26 @@ void PaintData::normalize() {
   std::stable_sort(stops.begin(), stops.end(), [](const Stop& a, const Stop& b) { return a.offset < b.offset; });
   if (stops.empty()) { kind = Paint::COLOR; color = { 0, 0, 0, 0 }; return; }
   if (stops.size() == 1) { kind = Paint::COLOR; color = stops[0].color; stops.clear(); return; }
+  // Fully transparent stops take the RGB of their neighbours. Browsers interpolate gradients in
+  // premultiplied space (a transparent stop contributes no color); Skia / tgfx / node-canvas
+  // interpolate straight alpha, where "yellow → transparent" passes through dark olive. With the
+  // neighbour's RGB both spaces agree for alpha-0 stops. A transparent stop between two different
+  // colors splits into two coincident stops, one per side.
+  std::vector<Stop> fixed;
+  fixed.reserve(stops.size() + 2);
+  for (size_t i = 0; i < stops.size(); i++) {
+    const Stop& s = stops[i];
+    if (s.color.a > 0) { fixed.push_back(s); continue; }
+    const Stop* left = nullptr;
+    for (size_t k = i; k-- > 0;) if (stops[k].color.a > 0) { left = &stops[k]; break; }
+    const Stop* right = nullptr;
+    for (size_t k = i + 1; k < stops.size(); k++) if (stops[k].color.a > 0) { right = &stops[k]; break; }
+    if (!left && !right) { fixed.push_back(s); continue; }   // an all-transparent gradient stays as is
+    auto withRgb = [&](const Stop& src) { Stop t = s; t.color.r = src.color.r; t.color.g = src.color.g; t.color.b = src.color.b; return t; };
+    if (left && right && !(left->color == right->color)) { fixed.push_back(withRgb(*left)); fixed.push_back(withRgb(*right)); }
+    else fixed.push_back(withRgb(left ? *left : *right));
+  }
+  stops.swap(fixed);
 }
 
 // ---- Path -----------------------------------------------------------------------------------------
