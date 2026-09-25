@@ -1,127 +1,105 @@
 # AnyCanvas
 
-One vector core for canvas drawings and SVG. An app records a drawing through a Canvas2D-shaped API
-(the **opcode stream**) or hands over SVG markup; the platform-free C++ **core** turns either into one
-normalized **draw list**; a thin per-platform **painter** replays that list on the native 2D API
-(Canvas2D, android.graphics, tgfx, CoreGraphics). No rasterizer, no fonts and no image decoding live
-in the core — every platform draws with its own stack, and every platform draws the same list.
+One vector core for canvas drawings and SVG. An app draws through a Canvas2D-shaped API or hands
+over SVG markup; a platform-free C++ core turns both into one **draw list**; a thin painter per
+platform replays it on the native 2D API. Same list everywhere, native text and pixels everywhere.
 
-```
-   recorder (TS / Kotlin / Swift)  ──opcode stream──▶ ┌──────────────┐
-                                                      │  core (C++)  │ ──draw list──▶ painter ──▶ pixels
-   SVG markup ─────────────────────────────────────▶ └──────────────┘        (web · android · tgfx · apple)
+![AnyCanvas: recorders and SVG go into the core, the draw list goes out to the painters](docs/images/architecture.svg)
+
+The same draw list, painted by Skia on the desktop (left) and by `android.graphics` on a phone (right):
+
+<p>
+  <img src="docs/images/shapes-skia.png" width="49%" alt="the shapes golden painted by the web painter on Skia">
+  <img src="docs/images/shapes-android.png" width="49%" alt="the same draw list painted by the Android painter on a phone">
+</p>
+
+SVG through the same core — nanosvg's shapes and gradients, plus `<text>` drawn with the platform's fonts:
+
+<p>
+  <img src="docs/images/tiger-skia.png" width="32%" alt="nanosvg's tiger, painted from the draw list">
+  <img src="docs/images/text-skia.png" width="64%" alt="the SVG text golden: anchors, baselines, tspans, a rotation, a gradient fill">
+</p>
+
+## How it works
+
+| piece | what it is |
+|---|---|
+| **opcode stream** | what a recorder writes: `Float32Array` + strings, the Canvas2D model (state, transforms, paths, fill / stroke / clip, text, images) plus gradients, dashes, fill rule, letter spacing. Defined in [spec/ops.h](spec/ops.h). |
+| **core** | C++17, no platform code: interprets the stream, parses SVG (nanosvg, extended with `<text>`), resolves CSS colors and fonts, turns arcs into cubics, normalizes gradients. C API in [anycanvas.h](core/include/anycanvas/anycanvas.h). Runs native, as wasm, behind JNI. |
+| **draw list** | what the core emits: ten commands with everything resolved — absolute transforms, RGBA, `(family size weight italic)`, path verbs, alpha on the paint. Defined in [spec/draw.h](spec/draw.h). |
+| **painter** | a loop with one case per command on Canvas2D, `android.graphics`, tgfx or CoreGraphics. Fonts, shaping and image decoding are the platform's, through a few hooks. |
+
+The three headers under `spec/` are the single source of every id: `bun spec/generate.ts` emits
+them for TypeScript, Kotlin and Swift, painters switch over them exhaustively, and golden draw lists
+pin the core's output. Text is never measured in the core, so goldens are deterministic.
+
+## Use it
+
+```ts
+// TypeScript: record, then paint what the core returned (browser, OffscreenCanvas, node-canvas)
+const c = new Recorder()
+c.fillStyle = "#1e90ff"; c.roundRect(10, 10, 200, 80, 16).fill()
+c.font = "bold 24px Inter"; c.fillText("hello", 20, 60)
+const { cmd, refs } = c.stream()                 // → the core (native or wasm)
+paint(ctx, readDrawList(words, strings), { image: id => surfaces[id] })
 ```
 
-Synchronization across the languages is guarded by generated tables and tests, not discipline: the
-formats live in three headers under `spec/`, a generator emits the same ids for TypeScript, Kotlin and
-Swift, every painter switches over the draw commands exhaustively, and golden draw lists pin the
-core's behaviour byte for byte.
+```kotlin
+// Android
+val list = AnyCanvas().interpret(cmd, refs, scale = density)
+Painter(hooks).paint(Canvas(bitmap), list)
+core.parseSvg(markup)?.use { painter.paint(canvas, it.draw(w, h, tint = Color.RED)) }
+```
+
+```c
+/* C: the host keeps the pixels; the core keeps the format */
+ac_interpret(ctx, cmd, len, refs, nrefs, scale, &list);   /* then replay `list` with your painter */
+ac_svg_draw(ctx, svg, w, h, 1, tint, &list);
+ac_encode(rgba, w, h, 0 /* png */, 100, &bytes);
+```
 
 ## Layout
 
 ```
-spec/            THE formats. enums.h · ops.h (the opcode stream) · draw.h (the draw list), X-macro tables
-                 generate.ts → gen/spec.ts, gen/Spec.kt, gen/Spec.swift (committed; `bun run check:spec` in CI)
-core/            C++17, no platform code. include/anycanvas/anycanvas.h = the C API; src/ = the interpreter
-                 (opcodes → draw list), the SVG front end (nanosvg → the same draw list), the CSS color / font
-                 parsers, the geometry (arcs → cubics), the surface registry, PNG / JPEG encoding, the JSON dump
-                 vendor/ = nanosvg (zlib, patched: see "ANYCANVAS" comments) + stb_image_write (public domain)
-recorders/ts/    `Recorder`: the Canvas2D-shaped API that writes the opcode stream (npm anycanvas-recorder)
-painters/web/    `readDrawList` + `paint(ctx, commands)` on any Canvas2D context (npm anycanvas-web)
-painters/tgfx/   the C++ painter over tgfx::Canvas — sources only, compiled by the including build
-painters/android/  the Kotlin painter over android.graphics + the JNI binding of core (a Gradle library)
-painters/apple/  the Swift painter over CoreGraphics (an SPM package) — later, written on the Mac
-tools/acdump     draw lists and reference PNGs from the command line
-tests/           core/ (ctest: unit + golden) · ts/ (bun: recorder, reader, web painter) · golden/ (the corpus)
+spec/              ops.h · draw.h · enums.h, generate.ts → gen/ (TS, Kotlin, Swift)
+core/              the library (C API + C++ internals), vendor/ nanosvg + stb
+recorders/ts/      Recorder (npm anycanvas-recorder)
+painters/web/      reader + Canvas2D painter (npm anycanvas-web)
+painters/android/  Kotlin painter + JNI binding, a Gradle library; demo/ = the on-device check app
+painters/tgfx/     C++ painter sources, compiled by the including build
+painters/apple/    Swift painter over CoreGraphics — later, on the Mac
+tools/acdump       draw lists and reference PNGs from the command line
+tests/             ctest (unit + golden), bun (recorder, reader, painter), golden/ (the corpus)
+docs/images/       this README's pictures; `bun tests/ts/readme-images.ts` regenerates them from the goldens
 ```
-
-## The formats, in one paragraph each
-
-**The opcode stream** ([spec/ops.h](spec/ops.h)) is a `Float32Array` of words plus a string table: an
-op id followed by its operands (floats, ints, string indices). It is the HTML Canvas2D model —
-state stack, transforms, path building, fill / stroke / clip, text, images — plus gradients, dashes,
-the fill rule, the miter limit and letter spacing. An interpreter stops at the first unknown or
-truncated op, so a newer stream degrades to a shorter drawing.
-
-**The draw list** ([spec/draw.h](spec/draw.h)) is the same physical shape (words + strings) with
-everything resolved: absolute transforms, RGBA colors, `(family size weight italic)` fonts, arcs and
-rectangles as path verbs, alpha on the paint, normalized gradient stops, balanced save / restore.
-Ten commands. A painter is a loop with one case each and no state of its own.
-
-**Gradients** are a matrix from *gradient space* to user space: a linear gradient runs from (0,0) to
-(1,0) there, a radial one is the unit circle with a start circle at (fx, fy) of radius r0. Every
-backend expresses that natively (a shader local matrix on Skia / tgfx / Android, a context
-transform on Canvas2D and CoreGraphics), and SVG `gradientTransform` needs no special case.
 
 ## Build and test
 
 ```
-./build.ps1                        Windows: configure + build (MSVC, Ninja) + ctest
-./build.sh                         Linux / macOS / WSL
-./build.ps1 -Update                rewrite tests/golden/expected after an intended change — review the diff
-bun install && bun test tests/ts   the TS side (needs the goldens the C++ test wrote)
-bun run record                     re-record tests/golden/streams from tests/ts/scenarios.ts
-bun run check:spec                 the generated enums are fresh
-build/acdump svg file.svg          the draw list of an SVG (JSON); `stream file.json` for an opcode stream
-build/acdump png file.svg out.png  a CPU reference raster (nanosvgrast) for the eye
+./build.ps1  |  ./build.sh          core + tools + ctest (MSVC / clang / gcc, Ninja)
+bun install && bun test tests/ts    recorder, reader, web painter on Skia
+./build.ps1 -Update                 rewrite the goldens after an intended change — review the diff
+painters/android: ./gradlew :anycanvas:assembleRelease · :demo:assembleDebug (16 goldens on the phone)
+build/acdump svg file.svg           the draw list of an SVG; `png file.svg out.png` = a CPU reference raster
 ```
 
-Tests, by layer: **unit** (hostile streams never crash, the CSS parsers, the geometry, transform and
-path semantics, the reader round trip, the encoder), **golden** (every stream and SVG under
-`tests/golden` → its draw list as JSON, byte-equal on the platform that wrote it and numerically equal
-(±1e-4) on every other — float trig differs in the last digits between libms — and as the binary the
-painters read),
-**recorder** (the committed streams match a fresh recording; every opcode is exercised), **reader**
-(the TS decoder of the binary equals the core's JSON), **web painter** (every golden replays on
-Skia via @napi-rs/canvas; known colors land where the drawing says).
+Goldens are byte-equal on the platform that wrote them and numerically equal (±1e-4) elsewhere:
+float trig differs in the last digits between libms.
 
-## Using it
+## Limits
 
-**C / C++**: `add_subdirectory(AnyCanvas)` and link `anycanvas` (the C API of
-[anycanvas.h](core/include/anycanvas/anycanvas.h)) or `anycanvas-internal` (the C++ types of
-`core/src`, for a C++ painter). A host keeps the pixels: it asks `ac_interpret` / `ac_svg_draw` for a
-draw list, replays it with its painter, and reads pixels back for `ac_encode`. The surface registry
-(`ac_surface_*`) is optional bookkeeping.
-
-**TypeScript**: `new Recorder()` records; `readDrawList(words, strings)` decodes what the core
-produced (from wasm memory or a file); `paint(ctx, commands, { image, fontFamily })` draws.
-
-**Kotlin / Swift**: the painters under `painters/` plus the generated `spec/gen/Spec.kt` / `Spec.swift`.
-
-## Platform limits, stated
-
-- Text is shaped and rasterized by the platform. Identical draw lists, different pixels; goldens
-  compare lists, never text pixels.
-- Canvas2D gradients only pad (reflect / repeat draw as pad); a gradient under a skew or non-uniform
-  scale is drawn by transforming the context, which also distorts a *stroke's* pen. Android's
-  `RadialGradient` is concentric (the focal point is ignored). `letterSpacing` needs Chrome 99+ /
-  Safari 17+ on the web.
-- SVG is nanosvg's model plus text: shapes, fills, strokes, gradients, opacity, dashes, transforms,
-  a tint override, and `<text>` / `<tspan>` (x y dx dy, font-family / size / weight / style,
-  text-anchor, dominant-baseline / alignment-baseline, letter-spacing, fill, stroke, opacity,
-  transform, entities, whitespace collapse) as the same `fillText` / `strokeText` a canvas produces —
-  rendered with the platform's fonts. A `<tspan>` without its own position merges into the enclosing
-  run (the core has no metrics, so it cannot advance a pen): text after a positioned tspan needs a
-  position of its own. No `textPath`, per-glyph rotation, vertical writing, `@font-face` inside the
-  SVG, filters, masks, patterns or CSS beyond class selectors. `objectBoundingBox` gradient
-  coordinates must be percentages (a bare `1` is one pixel — a nanosvg trait).
-- A note for readers of the earlier Kotlin / Swift SVG libraries: nanosvg's `NSVGgradient::xform` is
-  the *inverse* transform (image → gradient space) with the linear axis along gradient Y. The core
-  inverts and canonicalizes it; `acdump png` (nanosvgrast) is the reference when in doubt.
+- Text is drawn by the platform: identical draw lists, different pixels.
+- Canvas2D gradients only pad; Android's radial gradient is concentric (no focal point);
+  `letterSpacing` on the web needs Chrome 99+ / Safari 17+.
+- SVG is nanosvg's model plus text: shapes, gradients, dashes, transforms, opacity, a tint override,
+  `<text>` / `<tspan>` with anchor, baseline and letter-spacing. A `<tspan>` without a position
+  merges into its run (no metrics in the core). No `textPath`, filters, masks, patterns or CSS
+  beyond class selectors.
 
 ## Status
 
-| part | state |
-|---|---|
-| spec + generator | built; `bun run check:spec` |
-| core: interpreter, SVG, CSS, geometry, surfaces, encode, JSON, C API | built; 114 unit checks, 16 goldens |
-| recorders/ts | built; tested |
-| painters/web | built; tested on Skia (@napi-rs/canvas) |
-| painters/tgfx | written against the tgfx API of the LeCodes desktop host; compiles there (its step 3) |
-| painters/android | built + run on a phone: `:anycanvas:assembleRelease` → AAR (arm64, armv7, x86_64); `:demo:assembleDebug` = the device check app (all 15 goldens through libanycanvas.so + the Kotlin painter on screen) |
-| painters/apple, recorders/kotlin, recorders/swift | not started |
-| SVG `<text>` / `<tspan>` | built: the nanosvg parser extension (`ANYCANVAS` comments) + the existing text command; golden `svg-text` |
+Built and tested: spec + generator, core, TS recorder and painter, Android painter + JNI (AAR, checked
+on a phone), SVG text. Written, compiled by its host build: the tgfx painter. Not started: the Apple
+painter, the Kotlin and Swift recorders.
 
-## License
-
-MIT. nanosvg is zlib (core/vendor/nanosvg/LICENSE.txt), stb_image_write public domain.
+MIT. nanosvg is zlib, stb_image_write public domain.

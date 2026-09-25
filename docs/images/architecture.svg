@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="300" viewBox="0 0 880 300" font-family="Inter, Segoe UI, Helvetica, Arial, sans-serif" font-size="14">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#6b7280"/>
+    </marker>
+  </defs>
+  <rect width="880" height="300" rx="12" fill="#f8fafc"/>
+
+  <!-- inputs -->
+  <g>
+    <rect x="24" y="48" width="200" height="72" rx="10" fill="#e0f2fe" stroke="#7dd3fc"/>
+    <text x="124" y="76" text-anchor="middle" font-weight="600" fill="#0c4a6e">recorder</text>
+    <text x="124" y="98" text-anchor="middle" fill="#0c4a6e">TypeScript · Kotlin · Swift</text>
+    <text x="124" y="140" text-anchor="middle" fill="#64748b" font-size="12">a Canvas2D-shaped API</text>
+
+    <rect x="24" y="176" width="200" height="72" rx="10" fill="#e0f2fe" stroke="#7dd3fc"/>
+    <text x="124" y="204" text-anchor="middle" font-weight="600" fill="#0c4a6e">SVG markup</text>
+    <text x="124" y="226" text-anchor="middle" fill="#0c4a6e">files, strings, icons</text>
+  </g>
+
+  <!-- arrows in -->
+  <line x1="224" y1="84" x2="330" y2="122" stroke="#6b7280" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="262" y="82" fill="#475569" font-size="12">opcode stream</text>
+  <line x1="224" y1="212" x2="330" y2="176" stroke="#6b7280" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- core -->
+  <rect x="336" y="96" width="208" height="108" rx="12" fill="#fef3c7" stroke="#f59e0b" stroke-width="1.5"/>
+  <text x="440" y="128" text-anchor="middle" font-weight="700" font-size="16" fill="#78350f">core</text>
+  <text x="440" y="150" text-anchor="middle" fill="#78350f">C++17, no platform code</text>
+  <text x="440" y="170" text-anchor="middle" fill="#78350f" font-size="12">interpreter · nanosvg · CSS · geometry</text>
+  <text x="440" y="188" text-anchor="middle" fill="#78350f" font-size="12">native, wasm, JNI</text>
+
+  <!-- draw list -->
+  <line x1="544" y1="150" x2="640" y2="150" stroke="#6b7280" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="592" y="140" text-anchor="middle" fill="#475569" font-size="12" font-weight="600">draw list</text>
+  <text x="592" y="168" text-anchor="middle" fill="#64748b" font-size="11">10 commands, resolved</text>
+
+  <!-- painters -->
+  <g>
+    <rect x="646" y="40" width="210" height="44" rx="8" fill="#dcfce7" stroke="#4ade80"/>
+    <text x="751" y="67" text-anchor="middle" fill="#14532d">web · Canvas2D</text>
+    <rect x="646" y="94" width="210" height="44" rx="8" fill="#dcfce7" stroke="#4ade80"/>
+    <text x="751" y="121" text-anchor="middle" fill="#14532d">android · android.graphics</text>
+    <rect x="646" y="148" width="210" height="44" rx="8" fill="#dcfce7" stroke="#4ade80"/>
+    <text x="751" y="175" text-anchor="middle" fill="#14532d">tgfx · desktop, Quest, macOS</text>
+    <rect x="646" y="202" width="210" height="44" rx="8" fill="#dcfce7" stroke="#4ade80"/>
+    <text x="751" y="229" text-anchor="middle" fill="#14532d">apple · CoreGraphics</text>
+    <text x="751" y="272" text-anchor="middle" font-weight="600" fill="#166534">painters</text>
+    <text x="751" y="290" text-anchor="middle" fill="#64748b" font-size="12">one case per command, no state</text>
+  </g>
+
+  <!-- spec -->
+  <text x="440" y="258" text-anchor="middle" fill="#475569" font-size="12">
+    <tspan font-weight="600">spec/</tspan> ops.h · draw.h · enums.h → generated ids for TS, Kotlin, Swift
+  </text>
+  <text x="440" y="278" text-anchor="middle" fill="#64748b" font-size="12">golden draw lists pin the core; exhaustive switches pin the painters</text>
+</svg>
