@@ -45,7 +45,12 @@ class AnyCanvas : Closeable {
     }
 
     companion object {
-        init { System.loadLibrary("anycanvas") }
+        init {
+            // The standalone AAR ships libanycanvas.so. A host that links the core into its own native
+            // library (the Gradle property anycanvas.externalCore) has no such file and has loaded these
+            // natives already — they resolve from its library; a host that has not fails on the first call.
+            try { System.loadLibrary("anycanvas") } catch (_: UnsatisfiedLinkError) {}
+        }
 
         /** True if the bytes look like an SVG document. */
         fun looksLikeSvg(bytes: ByteArray): Boolean = nativeLooksLikeSvg(bytes)

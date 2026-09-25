@@ -22,4 +22,7 @@ is handled.
 Build standalone: `./gradlew :anycanvas:assembleRelease` (NDK + CMake 3.22.1 from the SDK). Inside
 another Gradle build, include the module by path (see build.gradle.kts). Two copies of the core in
 one app are avoided by linking the core statically into ONE `.so`: a host that already embeds the
-core in its own native library uses the Kotlin painter only and does not load `libanycanvas.so`.
+core in its own native library sets the Gradle property `anycanvas.externalCore=true` (no
+`libanycanvas.so` is built) and compiles `src/main/cpp/anycanvas_jni.cpp` into its library, so
+`AnyCanvas.kt`'s natives resolve from there (`System.loadLibrary("anycanvas")` failing is tolerated).
+The painter itself never needs the binding. LeCodes does exactly this (liblecodes-core.so).
