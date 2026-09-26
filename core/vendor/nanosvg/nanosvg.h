@@ -448,6 +448,12 @@ typedef struct NSVGattrib
 	float xform[6];
 	unsigned int fillColor;
 	unsigned int strokeColor;
+	/* ANYCANVAS: the CSS `color` property (inherited, black by default) and whether fill / stroke said
+	   `currentColor` — resolved when the shape is made, so `<g color="red" fill="currentColor">` and
+	   the icon sets' `stroke="currentColor"` (lucide, tabler, feather) paint. */
+	unsigned int currentColor;
+	char fillCurrent;
+	char strokeCurrent;
 	float opacity;
 	float fillOpacity;
 	float strokeOpacity;
@@ -687,6 +693,7 @@ static NSVGparser* nsvg__createParser(void)
 	memset(p->attr[0].id, 0, sizeof p->attr[0].id);
 	p->attr[0].fillColor = NSVG_RGB(0,0,0) | NSVG_OPAQUE;		/* ANYCANVAS: the color's alpha */
 	p->attr[0].strokeColor = NSVG_RGB(0,0,0) | NSVG_OPAQUE;
+	p->attr[0].currentColor = NSVG_RGB(0,0,0) | NSVG_OPAQUE;		/* ANYCANVAS: `color` */
 	p->attr[0].opacity = 1;
 	p->attr[0].fillOpacity = 1;
 	p->attr[0].strokeOpacity = 1;
@@ -1072,7 +1079,7 @@ static void nsvg__addShape(NSVGparser* p)
 		shape->fill.type = NSVG_PAINT_NONE;
 	} else if (attr->hasFill == 1) {
 		shape->fill.type = NSVG_PAINT_COLOR;
-		shape->fill.color = nsvg__withOpacity(attr->fillColor, attr->fillOpacity);		/* ANYCANVAS */
+		shape->fill.color = nsvg__withOpacity(attr->fillCurrent ? attr->currentColor : attr->fillColor, attr->fillOpacity);		/* ANYCANVAS */
 	} else if (attr->hasFill == 2) {
 		shape->fill.type = NSVG_PAINT_UNDEF;
 	}
@@ -1082,7 +1089,7 @@ static void nsvg__addShape(NSVGparser* p)
 		shape->stroke.type = NSVG_PAINT_NONE;
 	} else if (attr->hasStroke == 1) {
 		shape->stroke.type = NSVG_PAINT_COLOR;
-		shape->stroke.color = nsvg__withOpacity(attr->strokeColor, attr->strokeOpacity);		/* ANYCANVAS */
+		shape->stroke.color = nsvg__withOpacity(attr->strokeCurrent ? attr->currentColor : attr->strokeColor, attr->strokeOpacity);		/* ANYCANVAS */
 	} else if (attr->hasStroke == 2) {
 		shape->stroke.type = NSVG_PAINT_UNDEF;
 	}
@@ -1727,14 +1734,20 @@ static int nsvg__parseAttr(NSVGparser* p, const char* name, const char* value)
 		else if (strcmp(value, "visible") == 0)
 			attr->visible = 1;
 
+	} else if (strcmp(name, "color") == 0) {		/* ANYCANVAS: what currentColor resolves to */
+		nsvg__parseColor(value, &attr->currentColor);
 	} else if (strcmp(name, "fill") == 0) {
 		if (strcmp(value, "none") == 0) {
 			attr->hasFill = 0;
 		} else if (strncmp(value, "url(", 4) == 0) {
 			attr->hasFill = 2;
 			nsvg__parseUrl(attr->fillGradient, value);
+		} else if (strcmp(value, "currentColor") == 0) {		/* ANYCANVAS */
+			attr->hasFill = 1;
+			attr->fillCurrent = 1;
 		} else if (nsvg__parseColor(value, &attr->fillColor)) {		/* ANYCANVAS: an invalid color ignores the declaration */
 			attr->hasFill = 1;
+			attr->fillCurrent = 0;
 		}
 	} else if (strcmp(name, "opacity") == 0) {
 		attr->opacity = nsvg__parseOpacity(value);
@@ -1746,8 +1759,12 @@ static int nsvg__parseAttr(NSVGparser* p, const char* name, const char* value)
 		} else if (strncmp(value, "url(", 4) == 0) {
 			attr->hasStroke = 2;
 			nsvg__parseUrl(attr->strokeGradient, value);
+		} else if (strcmp(value, "currentColor") == 0) {		/* ANYCANVAS */
+			attr->hasStroke = 1;
+			attr->strokeCurrent = 1;
 		} else if (nsvg__parseColor(value, &attr->strokeColor)) {		/* ANYCANVAS: an invalid color ignores the declaration */
 			attr->hasStroke = 1;
+			attr->strokeCurrent = 0;
 		}
 	} else if (strcmp(name, "stroke-width") == 0) {
 		attr->strokeWidth = nsvg__parseCoordinate(p, value, 0.0f, nsvg__actualLength(p));
@@ -2917,7 +2934,7 @@ static void nsvg__flushText(NSVGparser* p)
 		shape->fill.type = NSVG_PAINT_NONE;
 	} else if (attr->hasFill == 1) {
 		shape->fill.type = NSVG_PAINT_COLOR;
-		shape->fill.color = nsvg__withOpacity(attr->fillColor, attr->fillOpacity);		/* ANYCANVAS */
+		shape->fill.color = nsvg__withOpacity(attr->fillCurrent ? attr->currentColor : attr->fillColor, attr->fillOpacity);		/* ANYCANVAS */
 	} else if (attr->hasFill == 2) {
 		shape->fill.type = NSVG_PAINT_UNDEF;
 	}
@@ -2925,7 +2942,7 @@ static void nsvg__flushText(NSVGparser* p)
 		shape->stroke.type = NSVG_PAINT_NONE;
 	} else if (attr->hasStroke == 1) {
 		shape->stroke.type = NSVG_PAINT_COLOR;
-		shape->stroke.color = nsvg__withOpacity(attr->strokeColor, attr->strokeOpacity);		/* ANYCANVAS */
+		shape->stroke.color = nsvg__withOpacity(attr->strokeCurrent ? attr->currentColor : attr->strokeColor, attr->strokeOpacity);		/* ANYCANVAS */
 	} else if (attr->hasStroke == 2) {
 		shape->stroke.type = NSVG_PAINT_UNDEF;
 	}
