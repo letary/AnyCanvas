@@ -68,7 +68,8 @@ spec/              ops.h · draw.h · enums.h, generate.ts → gen/ (TS, Kotlin,
 core/              the library (C API + C++ internals), vendor/ nanosvg + stb
 recorders/ts/      Recorder (npm anycanvas-recorder)
 rust/css-color/    the Rust twin of css_color.h (crate anycanvas-css-color; cargo test = the color golden)
-painters/web/      reader + Canvas2D painter (npm anycanvas-web)
+painters/web/      reader + Canvas2D painter (npm anycanvas-web); replay.ts = the DIRECT painter:
+                   an opcode stream on a Canvas2D context with no core (a page with no wasm)
 painters/android/  Kotlin painter + JNI binding, a Gradle library; demo/ = the on-device check app
 painters/tgfx/     C++ painter sources, compiled by the including build
 painters/apple/    Swift painter over CoreGraphics + CoreText and the Swift binding (SwiftPM, the manifest at the
